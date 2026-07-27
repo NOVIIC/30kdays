@@ -7,14 +7,13 @@ import {
   isPast,
   isToday,
   isFuture,
-  DEFAULT_LIFESPAN,
-  type LifeConfig
+  type LifeConfig,
 } from '../../src/domain/lifeConfig'
 
 const config: LifeConfig = {
   birthdate: '2000-01-01',
   lifespanYears: 80,
-  version: 1
+  version: 1,
 }
 
 describe('lifeConfig', () => {

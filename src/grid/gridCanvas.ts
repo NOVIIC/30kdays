@@ -4,6 +4,8 @@ import { indexFromPoint } from './hitTest'
 import { createOverviewImageData } from './renderOverview'
 import { renderDetail } from './renderDetail'
 import { setupInput } from './input'
+import { dayFill, lightGridColors, type GridColors } from './palette'
+import { FLAG_HAS_TEXT, FLAG_HAS_IMAGE, FLAG_HAS_TODO } from '../domain/dayIndex'
 
 export interface GridCanvasOptions {
   canvas: HTMLCanvasElement
@@ -11,10 +13,13 @@ export interface GridCanvasOptions {
   todayIndex: number
   getDayFlags: (index: number) => number
   onCellClick: (index: number) => void
+  colors?: GridColors
 }
 
 export interface GridCanvasController {
   markDirty(): void
+  setColors(colors: GridColors): void
+  resetView(): void
   destroy(): void
 }
 
@@ -28,6 +33,7 @@ export function createGridCanvas(opts: GridCanvasOptions): GridCanvasController 
   let bitmapCanvas: HTMLCanvasElement | null = null
   let dirty = true
   let rafId = 0
+  let colors: GridColors = opts.colors ?? lightGridColors
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
 
   function rebuildLayout(): boolean {
@@ -68,25 +74,16 @@ export function createGridCanvas(opts: GridCanvasOptions): GridCanvasController 
 
   function buildOverviewBitmap() {
     if (!layout || layout.totalDays <= 0) return
-    const colors: string[] = new Array(opts.totalDays)
+    const fills: string[] = new Array(opts.totalDays)
     for (let i = 0; i < opts.totalDays; i++) {
       const flags = opts.getDayFlags(i)
-      const hasText = !!(flags & 1)
-      const hasImage = !!(flags & 2)
-      const isPast = i < opts.todayIndex
-      const isToday = i === opts.todayIndex
-
-      let fill = '#111827' // future default
-      if (isToday) fill = '#1e293b'
-      else if (isPast) {
-        if (hasText && hasImage) fill = '#4a5568'
-        else if (hasImage) fill = '#3d4f5f'
-        else if (hasText) fill = '#334155'
-        else fill = '#1e293b'
-      }
-      colors[i] = fill
+      fills[i] = dayFill(colors, {
+        isPast: i < opts.todayIndex,
+        isToday: i === opts.todayIndex,
+        hasContent: (flags & (FLAG_HAS_TEXT | FLAG_HAS_IMAGE)) !== 0,
+      })
     }
-    overviewBitmap = createOverviewImageData(layout.cols, layout.rows, opts.totalDays, colors)
+    overviewBitmap = createOverviewImageData(layout.cols, layout.rows, opts.totalDays, fills)
   }
 
   function render() {
@@ -102,7 +99,7 @@ export function createGridCanvas(opts: GridCanvasOptions): GridCanvasController 
     const vh = rect.height
 
     ctx.clearRect(0, 0, vw, vh)
-    ctx.fillStyle = '#0f1117'
+    ctx.fillStyle = colors.bg
     ctx.fillRect(0, 0, vw, vh)
 
     const cellScreenSize = layout.cellSize * camera.scale
@@ -123,19 +120,46 @@ export function createGridCanvas(opts: GridCanvasOptions): GridCanvasController 
         const h = layout.rows * layout.cellSize * camera.scale
         ctx.imageSmoothingEnabled = false
         ctx.drawImage(bitmapCanvas, x, y, w, h)
+
+        // 叠加网格线，让"每一天"在全景下依然可辨
+        if (cellScreenSize >= 4) {
+          ctx.strokeStyle = colors.bg
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          for (let c = 1; c < layout.cols; c++) {
+            const lx = x + c * cellScreenSize
+            ctx.moveTo(lx, y)
+            ctx.lineTo(lx, y + h)
+          }
+          for (let r = 1; r < layout.rows; r++) {
+            const ly = y + r * cellScreenSize
+            ctx.moveTo(x, ly)
+            ctx.lineTo(x + w, ly)
+          }
+          ctx.stroke()
+        }
+
+        // "今天"标记：比单格略大，全景下也清晰可见
+        const tCol = opts.todayIndex % layout.cols
+        const tRow = Math.floor(opts.todayIndex / layout.cols)
+        const tx = x + tCol * cellScreenSize
+        const ty = y + tRow * cellScreenSize
+        const pad = Math.max(1, cellScreenSize * 0.35)
+        ctx.fillStyle = colors.accent
+        ctx.fillRect(tx - pad, ty - pad, cellScreenSize + pad * 2, cellScreenSize + pad * 2)
       }
     } else {
       if (overviewBitmap || bitmapCanvas) {
         overviewBitmap = null
         bitmapCanvas = null
       }
-      renderDetail(ctx, camera, layout, vw, vh, (i: number) => {
+      renderDetail(ctx, camera, layout, vw, vh, colors, (i: number) => {
         const flags = opts.getDayFlags(i)
         return {
           isPast: i < opts.todayIndex,
           isToday: i === opts.todayIndex,
-          hasText: !!(flags & 1),
-          hasImage: !!(flags & 2),
+          hasContent: (flags & (FLAG_HAS_TEXT | FLAG_HAS_IMAGE)) !== 0,
+          hasTodo: !!(flags & FLAG_HAS_TODO),
         }
       })
     }
@@ -208,6 +232,18 @@ export function createGridCanvas(opts: GridCanvasOptions): GridCanvasController 
     markDirty() {
       overviewBitmap = null
       bitmapCanvas = null
+      dirty = true
+      scheduleRender()
+    },
+    setColors(next: GridColors) {
+      colors = next
+      overviewBitmap = null
+      bitmapCanvas = null
+      dirty = true
+      scheduleRender()
+    },
+    resetView() {
+      camera = createCamera()
       dirty = true
       scheduleRender()
     },

@@ -13,7 +13,7 @@ class MockImageData {
 }
 
 beforeAll(() => {
-  ;(globalThis as any).ImageData = MockImageData
+  ;(globalThis as { ImageData: unknown }).ImageData = MockImageData
 })
 
 describe('renderOverview', () => {

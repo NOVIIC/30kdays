@@ -1,23 +1,20 @@
-# 人生日历 PWA — 设计文档
-
-- **日期**：2026-06-11
-- **状态**：已确认设计，待评审后转实现计划（2026-07-07 复审：同步技术更新与默认后端反转）
-- **代号**：30kdays
-
----
+# 三万日 PWA — 设计文档
 
 ## 1. 概述
 
-一个**纯静态、可安装的跨平台 PWA**，把用户的一生按「天」铺成一张可缩放的网格（约 3 万格）。每个格子是真实的某一天；点开可写文字、加图片并保存，下次打开仍在。核心挑战是**流畅地动态显示约 3 万个格子**——通过 Canvas 2D + 离屏位图缓存解决。
+一个**纯静态、可安装的跨平台 PWA**，把用户的一生按「天」铺成一张可缩放的网格（约 3 万格）。四个功能模块：**人生日历**（网格主视图）、**按天日记**（点格子写文字+图片）、**待办**（全局清单，支持截止日与区间打卡）、**备忘录**（与日期无关的碎片笔记）。核心挑战是**流畅地动态显示约 3 万个格子**——通过 Canvas 2D + 离屏位图缓存解决。
 
 ### 目标
 
 1. 把一生按天可视化成贴合屏幕的网格，初始即可见全部格子。
 2. 滚轮 / 双指流畅缩放、拖拽平移，60fps。
-3. 点格子打开当天编辑器，写文字 + 加图片，持久保存。
-4. 过去 / 今天 / 未来用颜色区分。
-5. 纯静态、可离线、可安装到 iOS / Android / 桌面。
-6. 本地存储 + 备份导出/导入，防数据丢失。
+3. 点格子打开当天日记编辑器，写文字 + 加图片，持久保存。
+4. 待办：无日期 / 截止日 / 区间打卡（起止日 + 所需天数）三种调度，过期未完成记为「未达成」。
+5. 备忘录：碎片笔记，就地编辑自动保存。
+6. 过去 / 今天 / 未来 / 有内容 用颜色区分；todo 截止日在格上有标记点。
+7. 双主题：浅色纸张感为主线 + 深色，跟随系统可手动覆盖。
+8. 纯静态、可离线、可安装到 iOS / Android / 桌面。
+9. 本地存储 + 备份导出/导入，防数据丢失。
 
 ### 非目标（YAGNI）
 
@@ -31,11 +28,13 @@
 ## 2. 核心交互
 
 1. **首次进入**：onboarding 选「生日」+「预期寿命」（滑块，默认 80 岁）。据此算出总天数，建立空数据。
-2. **总览**：进入即看到全部格子铺满屏幕；过去=实色、今天=高亮、未来=淡色；有内容的过去格按「有字/有图」加深。
-3. **缩放/平移**：滚轮或双指缩放（围绕光标/双指中点），拖拽平移；放大到一定程度切换成带边框、日期、缩略图的高清模式。
-4. **点格子**：打开当天编辑器浮层，显示日期/星期/年龄/「人生第 N 天」；写文字、加图片；自动保存。
-5. **再次打开**：内容仍在；该格在总览里显示为「有内容」配色。
-6. **备份**：设置里导出全部数据为 zip / 从 zip 导入。
+2. **导航**：桌面左侧竖向图标导航（日历 / 待办 / 备忘 / 设置），移动端折叠为底部 tab；日历是默认主视图。
+3. **总览（日历视图）**：全部格子铺满屏幕；未来=淡色、过去空白=中间色、写过日记的过去=墨色、今天=强调色大标记；进行中 todo 的截止日/区间结束日在格上有小标记点（放大可见）。
+4. **缩放/平移**：滚轮或双指缩放（围绕光标/双指中点），拖拽平移；放大到一定程度切换成圆角格 + 今天描边环 + 截止点的高清模式；「全景」按钮一键复位。
+5. **点格子**：打开当天日记编辑器浮层，显示日期/星期/年龄/「人生第 N 天」；写文字、加图片；自动保存。「今天」按钮直接打开今天的日记。
+6. **待办视图**：按「未达成 / 今日 / 近 7 日 / 之后 / 无日期 / 已完成」分组；区间打卡型在今日组一键打卡；未达成项可编辑延长或删除；已完成组默认折叠。
+7. **备忘视图**：卡片列表，点卡片就地编辑，失焦自动保存。
+8. **备份与设置**：设置视图改预期寿命、切主题（浅色/深色/跟随系统）、导出全部数据为 zip / 从 zip 导入。
 
 ---
 
@@ -44,18 +43,20 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ UI 壳 (Svelte 5 + Vite + TS)                                   │
-│   Onboarding · GridView · DayEditor · Settings · TopBar        │
+│   Onboarding · SideNav · CalendarView(GridView) · DayEditor ·  │
+│   TodoView · TodoEditor · MemoView · SettingsView              │
 ├──────────────────────────────────────────────────────────────┤
 │ 网格渲染器 (纯 TS, Canvas 2D)         ← 性能核心                │
 │   layout(求 cols/rows) · camera · 离屏缓存 ·                   │
 │   renderOverview / renderDetail · hitTest · input · palette    │
 ├──────────────────────────────────────────────────────────────┤
 │ 领域层 (纯 TS, 可单测)                                          │
-│   lifeConfig(日期↔index, 总天数, 今天) · dayIndex(状态位)       │
+│   lifeConfig(日期↔index, 总天数, 今天) · dayIndex(状态位) ·    │
+│   todo(调度/分组/打卡/过期) · memo                             │
 ├──────────────────────────────────────────────────────────────┤
 │ 存储层 (TS, 跑在 Web Worker)                                    │
 │   StorageBackend 接口 → OpfsBackend / FsAccessBackend          │
-│   media(缩略图/压缩) · backup(zip)                              │
+│   readDoc/writeDoc(todos/memos) · media(缩略图/压缩) · backup  │
 ├──────────────────────────────────────────────────────────────┤
 │ PWA 层                                                          │
 │   vite-plugin-pwa(离线应用壳) · storage.persist()              │
@@ -77,10 +78,10 @@
 
 ```ts
 type LifeConfig = {
-  birthdate: string;     // 'YYYY-MM-DD'
-  lifespanYears: number; // 默认 80
-  version: number;
-};
+  birthdate: string // 'YYYY-MM-DD'
+  lifespanYears: number // 默认 80
+  version: number
+}
 ```
 
 - 所有日期运算在 **UTC 零点**进行，避免时区/夏令时误差；`birthdate` 以日期字符串存储。
@@ -93,10 +94,28 @@ type LifeConfig = {
 ### 4.2 DayIndex（`src/domain/dayIndex.ts`，纯函数 + 内存状态）
 
 - 内存中一个 `Uint8Array`，长度 = 总天数，每天 1 字节**内容状态位标志**：
-  - `bit0 = 有文字`，`bit1 = 有图片`，其余预留。空 = `0`。
+  - `bit0 = 有文字`，`bit1 = 有图片`（持久化到 `index.bin`）；`bit2 = 有关联的进行中 todo`（**运行时派生、不落盘**，由 `deadlineDayIndices` 算出后与日记标志位按位或传给渲染器）。
 - 提供 `get/set(index, flags)`、`hasContent(index)`。
 - 持久化为单个二进制文件 `index.bin`（≤ ~37KB），防抖 ~500ms。**单格改动用同步句柄 `write(byte, { at: index })` 单字节定位补丁**，写放大更低（移动端/电量友好），与 §6.2「单格只补画一格」一致；仅寿命缩放等批量变更才整写。
-- **配色** = `f(时间状态, 内容状态)`：过去空白 / 过去有字 / 过去有图（填充度递进）/ 今天（高亮环）/ 未来（淡）。主题相关（亮/暗）。
+- **配色** = `f(时间状态, 内容状态)`（`palette.dayFill`）：未来 / 过去空白 / 过去有内容 / 今天（强调色填充）。双主题各一套 `GridColors`（`lightGridColors` / `darkGridColors`），主题切换时 `controller.setColors()` 整体换肤。
+
+### 4.3 Todo（`src/domain/todo.ts`，纯函数）
+
+```ts
+type TodoSchedule =
+  | { kind: 'none' } // 无日期（普通待办/愿望）
+  | { kind: 'deadline'; due: string } // 截止日
+  | { kind: 'range'; start: string; end: string; requiredDays: number } // 区间打卡
+```
+
+- 区间型：约束 `end - start + 1 ≥ requiredDays`；区间内**任意日期**可打卡（`checkins: string[]`），打卡数 ≥ 所需天数自动完成。
+- **未达成**：截止日/结束日已过且未完成 → 状态 `failed`，界面上标「未达成」，可编辑延长日期或删除。
+- `groupTodos(todos, today)` 按 `failed / today / upcoming(≤7天) / later / nodate / done` 分组排序，空组不显示。
+- 日历标记点 = 进行中 todo 的 `deadline.due` 与 `range.end` 映射到人生日索引（`deadlineDayIndices`），见 §4.2 bit2。
+
+### 4.4 Memo（`src/domain/memo.ts`）
+
+- `{ id, text, updatedAt }`，与日期无关的碎片笔记，按 `updatedAt` 倒序展示。
 
 ---
 
@@ -139,8 +158,8 @@ cell = min(视口宽 / cols, 视口高 / rows)   // 正方形格子
 
 ### 6.1 双模式（按格子像素尺寸切换，阈值 ~12px）
 
-- **总览模式**（格子 < 12px）：每格仅纯色，**直接往一个 `Uint32Array`（RGBA packed）按 `row/col` 偏移写像素，再 `putImageData` 上屏**——比 3 万次 `fillRect` 更快、内存更低、随寿命增长扩展性更好；平移缩放只 `drawImage(缓存位图, 变换)`。**仅当数据 / 配置 / 布局变化才重建缓存**。
-- **高清模式**（格子 ≥ 12px）：裁剪到视口，只画可见的数百~上千格——边框、今天高亮环、内容标记 / 小缩略图、hover、日期标签。
+- **总览模式**（格子 < 12px）：每格仅纯色，**直接往一个 `Uint32Array`（RGBA packed）按 `row/col` 偏移写像素，再 `putImageData` 上屏**——比 3 万次 `fillRect` 更快、内存更低、随寿命增长扩展性更好；平移缩放只 `drawImage(缓存位图, 变换)`。**仅当数据 / 配置 / 布局变化才重建缓存**。贴图后叠加背景色细网格线（全景下每格仍可辨）与略大于单格的「今天」标记。
+- **高清模式**（格子 ≥ 12px）：裁剪到视口，只画可见的数百~上千格——圆角格 + 间隙留白、今天强调色描边环、todo 截止日小圆点。
 
 ### 6.2 调度与失效
 
@@ -169,38 +188,42 @@ I/O 全部在专用 Web Worker 进行，主线程经轻量 RPC（Comlink 或手�
 
 ```ts
 interface StorageBackend {
-  init(): Promise<void>;
-  readConfig(): Promise<LifeConfig | null>;
-  writeConfig(c: LifeConfig): Promise<void>;
-  readIndex(): Promise<Uint8Array | null>;
-  writeIndex(buf: Uint8Array): Promise<void>;
-  readDay(n: number): Promise<DayDoc | null>;
-  writeDay(n: number, doc: DayDoc): Promise<void>;
-  readMedia(n: number, id: string): Promise<Blob | null>;
-  writeMedia(n: number, id: string, blob: Blob): Promise<void>;
-  deleteMedia(n: number, id: string): Promise<void>;
-  exportZip(): Promise<Blob>;
-  importZip(zip: Blob): Promise<void>;
-  estimate(): Promise<{ usage: number; quota: number }>;
+  init(): Promise<void>
+  readConfig(): Promise<LifeConfig | null>
+  writeConfig(c: LifeConfig): Promise<void>
+  readIndex(): Promise<Uint8Array | null>
+  writeIndex(buf: Uint8Array): Promise<void>
+  readDay(n: number): Promise<DayDoc | null>
+  writeDay(n: number, doc: DayDoc): Promise<void>
+  readMedia(n: number, id: string): Promise<Blob | null>
+  writeMedia(n: number, id: string, blob: Blob): Promise<void>
+  deleteMedia(n: number, id: string): Promise<void>
+  readDoc<T>(name: string): Promise<T | null> // 通用 JSON 文档（todos/memos）
+  writeDoc<T>(name: string, data: T): Promise<void>
+  exportZip(): Promise<Blob>
+  importZip(zip: Blob): Promise<void>
+  estimate(): Promise<{ usage: number; quota: number }>
 }
 ```
 
 ### 7.2 文件布局（两种后端一致，可热插拔）
 
 ```
-config.json              生日、预期寿命、主题、年标记开关、版本
-index.bin                Uint8Array[总天数]，每天 1 字节位标志
+config.json              生日、预期寿命、版本
+index.bin                Uint8Array[总天数]，每天 1 字节位标志（日记内容）
 days/<n>.json            { text, media:[{id,name,w,h,type}], updatedAt }
 media/<n>/<id>.<ext>     原图（存前用 Worker 内 `OffscreenCanvas.convertToBlob({type:'image/webp', quality})` 压成 WebP，长边上限 ~2048px；quality 可调；AVIF 在 Safari 编码受限不采用）
 media/<n>/<id>.thumb     缩略图（长边 ~256px，Worker 内 OffscreenCanvas 生成）
+todos.json               Todo[]（标题 + 调度 + checkins + done）
+memos.json               Memo[]（碎片笔记）
 ```
 
 ```ts
 type DayDoc = {
-  text: string;
-  media: { id: string; name: string; w: number; h: number; type: string }[];
-  updatedAt: number;
-};
+  text: string
+  media: { id: string; name: string; w: number; h: number; type: string }[]
+  updatedAt: number
+}
 ```
 
 ### 7.3 两种后端
@@ -244,11 +267,9 @@ type DayDoc = {
 ## 9. Onboarding 与设置
 
 - **首次**：生日选择器 + 预期寿命滑块（默认 80）。算出总天数 → 写 `config.json` + 空 `index.bin`。
-- **设置**：
+- **设置**（独立视图，非弹层）：
   - 改预期寿命：调整索引长度并保数据；变长补零，变短若会丢弃已填日期则**警告确认**。
-  - 主题（亮 / 暗）。
-  - 年标记开关。
-  - 切换存储后端（桌面）。
+  - 主题：浅色 / 深色 / 跟随系统（`stores/theme.ts`，localStorage 持久化，`<html>` 切 `.dark` 类；index.html 内联脚本首屏前应用，避免闪烁）。
   - 导出 / 导入 zip。
   - 存储占用显示。
 
@@ -266,14 +287,18 @@ type DayDoc = {
 ## 11. 模块结构
 
 ```
-src/domain/   lifeConfig.ts · dayIndex.ts                         ← 纯函数，重点单测
+src/domain/   lifeConfig.ts · dayIndex.ts · todo.ts · memo.ts     ← 纯函数，重点单测
 src/storage/  StorageBackend.ts · opfsBackend.ts · fsAccessBackend.ts ·
               worker.ts(RPC) · backup.ts(zip) · media.ts(缩略图/压缩)
 src/grid/     gridCanvas.ts(控制器) · layout.ts(cols/rows+回流) · camera.ts ·
-              renderOverview.ts · renderDetail.ts · hitTest.ts · input.ts · palette.ts
-src/ui/       App.svelte · GridView.svelte(挂载 gridCanvas) · DayEditor.svelte ·
-              Onboarding.svelte · Settings.svelte · TopBar.svelte
-src/stores/   config · selectedDay · theme · storageStatus
+              renderOverview.ts · renderDetail.ts · hitTest.ts · input.ts ·
+              palette.ts(GridColors 双主题配色)
+src/ui/       App.svelte(壳+路由) · SideNav.svelte(导航) · CalendarView.svelte ·
+              GridView.svelte(挂载 gridCanvas) · DayEditor.svelte ·
+              TodoView.svelte · TodoEditor.svelte · MemoView.svelte ·
+              SettingsView.svelte · Onboarding.svelte
+src/stores/   config · todos · memos · theme · router · storageStatus
+src/app.css   设计系统：双主题 CSS 变量 + Tailwind 语义色（bg/ink/line/accent…）
 tests/        domain / storage / grid 数学 的单元与集成测试
 ```
 
@@ -303,19 +328,22 @@ tests/        domain / storage / grid 数学 的单元与集成测试
 
 ## 14. 技术选型理由（决策记录）
 
-| 决策 | 选择 | 理由 |
-|---|---|---|
-| 渲染 | Canvas 2D + 离屏位图缓存 | 30k 次 fillRect 远在 16ms 内；缓存后平移缩放≈贴图免费。WebGL/WebGPU 在此规模无可感知收益且成本高。 |
-| 框架 | Svelte 5 + Vite + TS | 运行时/包最小，利于 PWA 离线与加载；网格是框架无关的纯 TS 控制器，框架只管壳子。 |
-| 存储 | StorageBackend 抽象：桌面 FS Access + 全平台 OPFS 回退 | FS Access 在 iOS/Safari/Firefox/移动端不可用，必须有 OPFS 兜底；接口隔离使其可热插拔。 |
-| 布局 | 贴合屏幕长方形 + 自适应回流 | 满足「初始见全部、四边无空隙」；牺牲年对齐，用可选年标记补偿。 |
-| 备份 | fflate 打 zip 导出/导入 | 纯本地存储需防丢；全平台通用，无需后端。 |
-| 存储默认 | 桌面 Chromium 默认真实文件夹，OPFS 兜底 | 用户要数据主权 + 同步便利；FS Access 仅桌面 Chromium，OPFS 不可省。 |
-| 浮层 | 原生 `<dialog>` + `showModal()` | 焦点陷阱 / ESC / backdrop / aria-modal 免费，Svelte 5 配合良好。 |
-| 错误处理 | Svelte 5 `<svelte:boundary>` | 壳层渲染异常 fallback + 恢复，覆盖缓存重建失败等场景。 |
-| 多标签 | Web Locks + BroadcastChannel | 防同源多标签并发写覆盖，index/config 变更互推。 |
-| 渲染像素直写 | 总览模式 `Uint32Array` + `putImageData` | 3 万纯色格直写像素比 3 万次 `fillRect` 更快、内存更低。 |
-| 容器尺寸监听 | `ResizeObserver` | 覆盖旋转 / 布局 / 容器变化，比 `resize` 事件更稳。 |
+| 决策         | 选择                                                   | 理由                                                                                               |
+| ------------ | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| 渲染         | Canvas 2D + 离屏位图缓存                               | 30k 次 fillRect 远在 16ms 内；缓存后平移缩放≈贴图免费。WebGL/WebGPU 在此规模无可感知收益且成本高。 |
+| 框架         | Svelte 5 + Vite + TS                                   | 运行时/包最小，利于 PWA 离线与加载；网格是框架无关的纯 TS 控制器，框架只管壳子。                   |
+| 存储         | StorageBackend 抽象：桌面 FS Access + 全平台 OPFS 回退 | FS Access 在 iOS/Safari/Firefox/移动端不可用，必须有 OPFS 兜底；接口隔离使其可热插拔。             |
+| 布局         | 贴合屏幕长方形 + 自适应回流                            | 满足「初始见全部、四边无空隙」；牺牲年对齐，用可选年标记补偿。                                     |
+| 备份         | fflate 打 zip 导出/导入                                | 纯本地存储需防丢；全平台通用，无需后端。                                                           |
+| 存储默认     | 桌面 Chromium 默认真实文件夹，OPFS 兜底                | 用户要数据主权 + 同步便利；FS Access 仅桌面 Chromium，OPFS 不可省。                                |
+| 浮层         | 原生 `<dialog>` + `showModal()`                        | 焦点陷阱 / ESC / backdrop / aria-modal 免费，Svelte 5 配合良好。                                   |
+| 错误处理     | Svelte 5 `<svelte:boundary>`                           | 壳层渲染异常 fallback + 恢复，覆盖缓存重建失败等场景。                                             |
+| 多标签       | Web Locks + BroadcastChannel                           | 防同源多标签并发写覆盖，index/config 变更互推。                                                    |
+| 渲染像素直写 | 总览模式 `Uint32Array` + `putImageData`                | 3 万纯色格直写像素比 3 万次 `fillRect` 更快、内存更低。                                            |
+| 容器尺寸监听 | `ResizeObserver`                                       | 覆盖旋转 / 布局 / 容器变化，比 `resize` 事件更稳。                                                 |
+| 主题         | CSS 变量双主题（浅色纸张感为主线）                     | `<html>.dark` 一处切换全量换肤；canvas 配色经 `GridColors` 与 CSS 变量同源。                       |
+| 导航         | 左侧竖向图标导航 + 视图切换（移动端底部 tab）          | 日历保持全屏沉浸；待办/备忘/设置各有独立视图，结构简单。                                           |
+| Todo 调度    | 无日期 / 截止日 / 区间+所需天数                        | 覆盖「X 前完成」与「N 天里完成 k 次」两类真实目标；打卡达标自动完成，过期记未达成。                |
 
 ---
 

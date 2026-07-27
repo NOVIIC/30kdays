@@ -17,6 +17,9 @@ export interface StorageBackend {
   readMedia(n: number, id: string): Promise<Blob | null>
   writeMedia(n: number, id: string, blob: Blob): Promise<void>
   deleteMedia(n: number, id: string): Promise<void>
+  /** 通用 JSON 文档读写（用于 todos、memos 等全局数据） */
+  readDoc<T>(name: string): Promise<T | null>
+  writeDoc<T>(name: string, data: T): Promise<void>
   exportZip(): Promise<Blob>
   importZip(zip: Blob): Promise<void>
   estimate(): Promise<{ usage: number; quota: number }>

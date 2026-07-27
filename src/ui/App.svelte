@@ -1,86 +1,81 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { createRouter, type View } from '../stores/router'
+  import { createRouter } from '../stores/router'
   import { storageService } from '../lib/storageService'
   import { config } from '../stores/config'
-  import { selectedDay } from '../stores/selectedDay'
+  import { todos, loadTodos } from '../stores/todos'
+  import { loadMemos } from '../stores/memos'
+  import { initTheme, effectiveTheme } from '../stores/theme'
   import { todayIndex } from '../domain/lifeConfig'
+  import { deadlineDayIndices, todayString } from '../domain/todo'
+  import { FLAG_HAS_TODO } from '../domain/dayIndex'
+  import { lightGridColors, darkGridColors } from '../grid/palette'
   import type { LifeConfig } from '../domain/lifeConfig'
   import type { DayDoc } from '../storage/StorageBackend'
   import Onboarding from './Onboarding.svelte'
-  import GridView from './GridView.svelte'
+  import SideNav from './SideNav.svelte'
+  import CalendarView from './CalendarView.svelte'
+  import TodoView from './TodoView.svelte'
+  import MemoView from './MemoView.svelte'
+  import SettingsView from './SettingsView.svelte'
   import DayEditor from './DayEditor.svelte'
-  import TopBar from './TopBar.svelte'
-  import Settings from './Settings.svelte'
 
-  const { view, params, navigate } = createRouter()
+  const { view, navigate } = createRouter()
 
   let loading = $state(true)
   let todayIdx = $state(0)
-  let showEditor = $state(false)
-  let showSettings = $state(false)
+  let editorDay = $state<number | null>(null)
+  let calendar: CalendarView | null = $state(null)
 
+  const gridColors = $derived($effectiveTheme === 'dark' ? darkGridColors : lightGridColors)
+  const todoDays = $derived(
+    $config ? deadlineDayIndices($todos, $config, todayString()) : new Set<number>(),
+  )
+
+  // todo 变化 → 刷新日历上的截止日标记
   $effect(() => {
-    if ($params.d) {
-      const d = parseInt($params.d)
-      if (!isNaN(d)) {
-        selectedDay.set(d)
-      }
-    }
+    void todoDays
+    calendar?.refresh()
   })
 
   onMount(async () => {
+    initTheme()
     const cfg = await storageService.init()
     config.set(cfg)
     if (cfg) {
       todayIdx = todayIndex(cfg)
+      await Promise.all([loadTodos(), loadMemos()])
     }
     loading = false
-
-    $effect(() => {
-      // Watch for config changes from onboarding
-      const c = $config
-      if (c) {
-        todayIdx = todayIndex(c)
-      }
-    })
   })
 
   function handleOnboardingComplete(cfg: LifeConfig) {
     storageService.saveConfig(cfg).then(() => {
       config.set(cfg)
       todayIdx = todayIndex(cfg)
-      navigate('grid')
+      navigate('calendar')
     })
   }
 
   function handleCellClick(idx: number) {
-    selectedDay.set(idx)
-    showEditor = true
+    editorDay = idx
+  }
+
+  function handleToday() {
+    editorDay = todayIdx
   }
 
   function handleEditorClose() {
-    showEditor = false
+    editorDay = null
   }
 
   function handleEditorNavigate(idx: number) {
-    selectedDay.set(idx)
+    editorDay = idx
   }
 
   async function handleEditorSave(idx: number, doc: DayDoc) {
     await storageService.saveDay(idx, doc)
-  }
-
-  function handleToday() {
-    selectedDay.set(todayIdx)
-  }
-
-  function handleSettings() {
-    showSettings = true
-  }
-
-  function handleSettingsClose() {
-    showSettings = false
+    calendar?.refresh()
   }
 
   async function handleConfigChange(lifespan: number) {
@@ -109,46 +104,59 @@
     config.set(cfg)
     if (cfg) {
       todayIdx = todayIndex(cfg)
+      await Promise.all([loadTodos(), loadMemos()])
     }
+    navigate('calendar')
+    calendar?.refresh()
   }
 </script>
 
-<main class="relative h-dvh w-screen overflow-hidden bg-[#0f1117]">
+<main class="h-dvh w-screen overflow-hidden bg-bg text-ink">
   {#if loading}
-    <div class="flex h-full items-center justify-center text-gray-400">
-      加载中...
-    </div>
-  {:else if $config === null || $view === 'onboarding'}
+    <div class="flex h-full items-center justify-center text-sm text-faint">加载中…</div>
+  {:else if $config === null}
     <Onboarding onComplete={handleOnboardingComplete} />
   {:else}
-    {#if $config}
-      <TopBar onSettings={handleSettings} onToday={handleToday} />
-      <GridView
-        totalDays={storageService.totalDays}
-        todayIndex={todayIdx}
-        getDayFlags={(i) => storageService.getDayFlags(i)}
-        onCellClick={handleCellClick}
-      />
-    {/if}
+    <div class="flex h-full">
+      <SideNav view={$view} onNavigate={navigate} />
+      <div class="relative min-w-0 flex-1">
+        {#if $view === 'calendar'}
+          <CalendarView
+            bind:this={calendar}
+            totalDays={storageService.totalDays}
+            todayIndex={todayIdx}
+            getDayFlags={(i) =>
+              storageService.getDayFlags(i) | (todoDays.has(i) ? FLAG_HAS_TODO : 0)}
+            onCellClick={handleCellClick}
+            onToday={handleToday}
+            colors={gridColors}
+          />
+        {:else if $view === 'todo'}
+          <TodoView />
+        {:else if $view === 'memos'}
+          <MemoView />
+        {:else if $view === 'settings'}
+          <SettingsView
+            config={$config}
+            onConfigChange={handleConfigChange}
+            onExport={handleExport}
+            onImport={handleImport}
+          />
+        {/if}
+      </div>
+    </div>
 
-    {#if showEditor && $config && $selectedDay !== null}
+    {#if editorDay !== null && $config}
       <DayEditor
-        dayIndex={$selectedDay}
+        dayIndex={editorDay}
         config={$config}
         onClose={handleEditorClose}
         onNavigate={handleEditorNavigate}
         onSave={handleEditorSave}
         readDay={(i) => storageService.readDay(i)}
-      />
-    {/if}
-
-    {#if showSettings}
-      <Settings
-        config={$config}
-        onClose={handleSettingsClose}
-        onConfigChange={handleConfigChange}
-        onExport={handleExport}
-        onImport={handleImport}
+        readMedia={(i, id) => storageService.readMedia(i, id)}
+        writeMedia={(i, id, blob) => storageService.writeMedia(i, id, blob)}
+        deleteMedia={(i, id) => storageService.deleteMedia(i, id)}
       />
     {/if}
   {/if}

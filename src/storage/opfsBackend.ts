@@ -61,6 +61,14 @@ export class OpfsBackend implements StorageBackend {
     }
   }
 
+  async readDoc<T>(name: string): Promise<T | null> {
+    return this.readJSON<T>(name)
+  }
+
+  async writeDoc<T>(name: string, data: T): Promise<void> {
+    await this.writeJSON(name, data)
+  }
+
   async exportZip(): Promise<Blob> {
     const files: Record<string, Uint8Array> = {}
     await this.collectFiles('', files)
@@ -86,12 +94,9 @@ export class OpfsBackend implements StorageBackend {
     }
   }
 
-  private async collectFiles(
-    dir: string,
-    out: Record<string, Uint8Array>,
-  ): Promise<void> {
+  private async collectFiles(dir: string, out: Record<string, Uint8Array>): Promise<void> {
     const handle = dir === '' ? this.root! : await this.getDir(dir)
-    for await (const [name, entry] of (handle as any).entries()) {
+    for await (const [name, entry] of handle.entries()) {
       const path = dir ? `${dir}/${name}` : name
       if (entry.kind === 'file') {
         const fh = entry as FileSystemFileHandle
@@ -113,10 +118,7 @@ export class OpfsBackend implements StorageBackend {
     return await dir.getFileHandle(name)
   }
 
-  private async writeFile(
-    path: string,
-    content: string | Uint8Array | Blob,
-  ): Promise<void> {
+  private async writeFile(path: string, content: string | Uint8Array | Blob): Promise<void> {
     const parts = path.split('/')
     const name = parts.pop()!
     let dir = this.root!

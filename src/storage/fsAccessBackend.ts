@@ -18,7 +18,10 @@ async function persistHandle(h: FileSystemDirectoryHandle): Promise<void> {
       const db = req.result
       const tx = db.transaction('handles', 'readwrite')
       tx.objectStore('handles').put(h, DB_KEY)
-      tx.oncomplete = () => { db.close(); resolve() }
+      tx.oncomplete = () => {
+        db.close()
+        resolve()
+      }
       tx.onerror = () => reject(tx.error)
     }
     req.onerror = () => reject(req.error)
@@ -33,7 +36,10 @@ async function restoreHandle(): Promise<FsHandle | null> {
       const db = req.result
       const tx = db.transaction('handles', 'readonly')
       const get = tx.objectStore('handles').get(DB_KEY)
-      get.onsuccess = () => { db.close(); resolve(get.result ?? null) }
+      get.onsuccess = () => {
+        db.close()
+        resolve(get.result ?? null)
+      }
       get.onerror = () => reject(get.error)
     }
     req.onerror = () => reject(req.error)
@@ -55,7 +61,12 @@ export class FsAccessBackend implements StorageBackend {
         return
       }
     }
-    const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+    const picker = (
+      window as unknown as {
+        showDirectoryPicker(o: { mode: 'readwrite' }): Promise<FileSystemDirectoryHandle>
+      }
+    ).showDirectoryPicker
+    const handle = await picker({ mode: 'readwrite' })
     this.root = handle as FsHandle
     await persistHandle(this.root)
   }
@@ -112,6 +123,14 @@ export class FsAccessBackend implements StorageBackend {
     }
   }
 
+  async readDoc<T>(name: string): Promise<T | null> {
+    return this.readJSON<T>(name)
+  }
+
+  async writeDoc<T>(name: string, data: T): Promise<void> {
+    await this.writeJSON(name, data)
+  }
+
   async exportZip(): Promise<Blob> {
     const files: Record<string, Uint8Array> = {}
     await this.collectFiles('', files)
@@ -133,12 +152,9 @@ export class FsAccessBackend implements StorageBackend {
     return { usage: est.usage ?? 0, quota: est.quota ?? 0 }
   }
 
-  private async collectFiles(
-    dir: string,
-    out: Record<string, Uint8Array>,
-  ): Promise<void> {
+  private async collectFiles(dir: string, out: Record<string, Uint8Array>): Promise<void> {
     const handle = dir === '' ? this.root! : await this.getDir(dir)
-    for await (const [name, entry] of (handle as any).entries()) {
+    for await (const [name, entry] of handle.entries()) {
       const path = dir ? `${dir}/${name}` : name
       if (entry.kind === 'file') {
         const fh = entry as FileSystemFileHandle
@@ -160,10 +176,7 @@ export class FsAccessBackend implements StorageBackend {
     return await dir.getFileHandle(name)
   }
 
-  private async writeFile(
-    path: string,
-    content: string | Uint8Array | Blob,
-  ): Promise<void> {
+  private async writeFile(path: string, content: string | Uint8Array | Blob): Promise<void> {
     const parts = path.split('/')
     const name = parts.pop()!
     let dir: FileSystemDirectoryHandle = this.root!

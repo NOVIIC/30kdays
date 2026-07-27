@@ -1,5 +1,4 @@
 import type { Camera } from './camera'
-import { screenToWorld, zoomAt } from './camera'
 
 export interface InputCallbacks {
   onZoom: (factor: number, sx: number, sy: number) => void

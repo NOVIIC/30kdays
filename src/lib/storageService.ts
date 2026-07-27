@@ -4,6 +4,8 @@ import type { StorageBackend, DayDoc } from '../storage/StorageBackend'
 import type { LifeConfig } from '../domain/lifeConfig'
 import { totalDays } from '../domain/lifeConfig'
 import { createDayIndex, setFlags, getFlags } from '../domain/dayIndex'
+import type { Todo } from '../domain/todo'
+import type { Memo } from '../domain/memo'
 
 class StorageService {
   backend: StorageBackend | null = null
@@ -98,6 +100,26 @@ class StorageService {
       this.indexBuffer = idx
       this.totalDays = idx.length
     }
+  }
+
+  async loadTodos(): Promise<Todo[]> {
+    if (!this.backend) return []
+    return (await this.backend.readDoc<Todo[]>('todos.json')) ?? []
+  }
+
+  async saveTodos(todos: Todo[]): Promise<void> {
+    if (!this.backend) return
+    await this.backend.writeDoc('todos.json', todos)
+  }
+
+  async loadMemos(): Promise<Memo[]> {
+    if (!this.backend) return []
+    return (await this.backend.readDoc<Memo[]>('memos.json')) ?? []
+  }
+
+  async saveMemos(memos: Memo[]): Promise<void> {
+    if (!this.backend) return
+    await this.backend.writeDoc('memos.json', memos)
   }
 
   async estimate(): Promise<{ usage: number; quota: number }> {

@@ -1,5 +1,68 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 设计系统：纸张感（浅色）+ 墨色（深色）
+ * 所有组件通过 Tailwind 语义类（bg-bg、text-ink、border-line…）引用，
+ * 主题切换只需在 <html> 上切换 .dark 类。
+ */
+:root {
+  color-scheme: light;
+  --bg: #f7f5f0;
+  --bg-raised: #fdfcf9;
+  --bg-sunken: #efede6;
+  --ink: #2b2823;
+  --ink-soft: #6f6a60;
+  --ink-faint: #a39d90;
+  --line: #e5e1d7;
+  --line-strong: #d5d0c4;
+  --accent: #bc4b26;
+  --accent-strong: #a33d1c;
+  --accent-soft: #f5e6dc;
+  --accent-contrast: #fffaf6;
+  --danger: #b3382e;
+  --danger-soft: #f7e3e0;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #191817;
+  --bg-raised: #22201e;
+  --bg-sunken: #131211;
+  --ink: #e8e4db;
+  --ink-soft: #a09a8e;
+  --ink-faint: #6b665c;
+  --line: #322f2b;
+  --line-strong: #454138;
+  --accent: #e0784f;
+  --accent-strong: #ea8d66;
+  --accent-soft: #3a251c;
+  --accent-contrast: #211310;
+  --danger: #e0645a;
+  --danger-soft: #3d211e;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-sunken: var(--bg-sunken);
+  --color-ink: var(--ink);
+  --color-soft: var(--ink-soft);
+  --color-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', sans-serif;
+}
+
 :root {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -7,6 +70,36 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html {
+  background-color: var(--bg);
+}
+
 body {
   margin: 0;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* 克制的滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 数字等宽，用于统计与日期 */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }

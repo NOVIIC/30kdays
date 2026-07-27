@@ -1,7 +1,14 @@
 import type { Camera } from './camera'
 import type { Layout } from './layout'
 import { screenToWorld, worldToScreen } from './camera'
-import { getDayColor as getDayColorFn } from './palette'
+import { dayFill, type GridColors } from './palette'
+
+export type DayDetailInfo = {
+  isPast: boolean
+  isToday: boolean
+  hasContent: boolean
+  hasTodo: boolean
+}
 
 export function renderDetail(
   ctx: CanvasRenderingContext2D,
@@ -9,12 +16,8 @@ export function renderDetail(
   layout: Layout,
   viewportW: number,
   viewportH: number,
-  getDayInfo: (index: number) => {
-    isPast: boolean
-    isToday: boolean
-    hasText: boolean
-    hasImage: boolean
-  },
+  colors: GridColors,
+  getDayInfo: (index: number) => DayDetailInfo,
 ): void {
   const { cellSize, cols, rows, totalDays } = layout
   const scale = camera.scale
@@ -33,28 +36,42 @@ export function renderDetail(
       if (index >= totalDays) continue
 
       const info = getDayInfo(index)
-      const color = getDayColorFn(info.isPast, info.isToday, info.hasText, info.hasImage)
-
       const { x, y } = worldToScreen(camera, col * cellSize, row * cellSize)
       const sz = cellSize * scale
 
-      ctx.fillStyle = color.fill
-      ctx.fillRect(x, y, sz, sz)
+      // 格子内缩，背景色透出形成"网格留白"
+      const gap = Math.min(1.5, Math.max(0.5, sz * 0.12))
+      const cx = x + gap / 2
+      const cy = y + gap / 2
+      const cs = sz - gap
 
-      ctx.strokeStyle = color.border
-      ctx.lineWidth = Math.max(0.5, scale * 0.5)
-      ctx.strokeRect(x, y, sz, sz)
-
-      if (info.isToday) {
-        ctx.strokeStyle = color.highlight
-        ctx.lineWidth = Math.max(2, scale * 1.5)
-        ctx.strokeRect(x - 1, y - 1, sz + 2, sz + 2)
+      ctx.fillStyle = dayFill(colors, info)
+      const r = sz >= 16 ? 2.5 : sz >= 9 ? 1.5 : 0
+      if (r > 0) {
+        ctx.beginPath()
+        ctx.roundRect(cx, cy, cs, cs, r)
+        ctx.fill()
+      } else {
+        ctx.fillRect(cx, cy, cs, cs)
       }
 
-      if (info.hasText || info.hasImage) {
-        const indicator = Math.max(2, sz * 0.2)
-        ctx.fillStyle = color.highlight
-        ctx.fillRect(x + sz - indicator - 1, y + sz - indicator - 1, indicator, indicator)
+      if (info.isToday) {
+        ctx.strokeStyle = colors.accent
+        ctx.lineWidth = Math.max(1.5, scale * 1.2)
+        if (r > 0) {
+          ctx.beginPath()
+          ctx.roundRect(cx - 1.5, cy - 1.5, cs + 3, cs + 3, r + 1.5)
+          ctx.stroke()
+        } else {
+          ctx.strokeRect(cx - 1.5, cy - 1.5, cs + 3, cs + 3)
+        }
+      } else if (info.hasTodo && sz >= 7) {
+        // todo 截止日标记点（今天已有高亮，不再叠加）
+        const dr = Math.max(1.2, sz * 0.09)
+        ctx.fillStyle = colors.accent
+        ctx.beginPath()
+        ctx.arc(cx + cs - dr * 1.4, cy + cs - dr * 1.4, dr, 0, Math.PI * 2)
+        ctx.fill()
       }
     }
   }

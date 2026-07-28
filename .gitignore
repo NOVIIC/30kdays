@@ -6,3 +6,8 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Rust / wasm-pack 构建产物
+target/
+**/pkg/
+spikes/**/Cargo.lock

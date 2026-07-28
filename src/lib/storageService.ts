@@ -122,6 +122,17 @@ class StorageService {
     await this.backend.writeDoc('memos.json', memos)
   }
 
+  /** 通用 JSON 文档读写（扩展经 host.doc.* 走到这里，不再加专用方法） */
+  async readDoc<T>(name: string): Promise<T | null> {
+    if (!this.backend) return null
+    return this.backend.readDoc<T>(name)
+  }
+
+  async writeDoc<T>(name: string, data: T): Promise<void> {
+    if (!this.backend) return
+    await this.backend.writeDoc<T>(name, data)
+  }
+
   async estimate(): Promise<{ usage: number; quota: number }> {
     if (!this.backend) return { usage: 0, quota: 0 }
     return this.backend.estimate()

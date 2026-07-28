@@ -7,7 +7,7 @@ export default [
   ...tseslint.configs.recommended,
   ...svelte.configs['flat/recommended'],
   {
-    ignores: ['dist/', '.svelte-kit/', 'node_modules/'],
+    ignores: ['dist/', '.svelte-kit/', 'node_modules/', 'spikes/', '**/pkg/'],
   },
   {
     // 让 svelte 文件中的 <script lang="ts"> 走 TypeScript 解析器

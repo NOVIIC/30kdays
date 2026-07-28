@@ -2,9 +2,9 @@
   import { onMount } from 'svelte'
   import { createRouter } from '../stores/router'
   import { storageService } from '../lib/storageService'
+  import { extensionHost } from '../extensions/host'
   import { config } from '../stores/config'
   import { todos, loadTodos } from '../stores/todos'
-  import { loadMemos } from '../stores/memos'
   import { initTheme, effectiveTheme } from '../stores/theme'
   import { todayIndex } from '../domain/lifeConfig'
   import { deadlineDayIndices, todayString } from '../domain/todo'
@@ -12,11 +12,11 @@
   import { lightGridColors, darkGridColors } from '../grid/palette'
   import type { LifeConfig } from '../domain/lifeConfig'
   import type { DayDoc } from '../storage/StorageBackend'
+  import type { Component } from 'svelte'
   import Onboarding from './Onboarding.svelte'
   import SideNav from './SideNav.svelte'
   import CalendarView from './CalendarView.svelte'
   import TodoView from './TodoView.svelte'
-  import MemoView from './MemoView.svelte'
   import SettingsView from './SettingsView.svelte'
   import DayEditor from './DayEditor.svelte'
 
@@ -26,6 +26,13 @@
   let todayIdx = $state(0)
   let editorDay = $state<number | null>(null)
   let calendar: CalendarView | null = $state(null)
+  let items = $state<{ id: string; label: string; icon: string }[]>([
+    { id: 'calendar', label: '日历', icon: 'grid' },
+    { id: 'todo', label: '待办', icon: 'check' },
+    { id: 'settings', label: '设置', icon: 'gear' },
+  ])
+  let extComp = $state<Component | null>(null)
+  let extLogic = $state<unknown>(null)
 
   const gridColors = $derived($effectiveTheme === 'dark' ? darkGridColors : lightGridColors)
   const todoDays = $derived(
@@ -38,14 +45,51 @@
     calendar?.refresh()
   })
 
+  // view 变化时动态加载扩展视图组件
+  $effect(() => {
+    const v = $view
+    if (v === 'calendar' || v === 'todo' || v === 'settings') {
+      extComp = null
+      extLogic = null
+      return
+    }
+    const info = extensionHost.registry.getViewForRoute(v)
+    if (!info) {
+      extComp = null
+      extLogic = null
+      return
+    }
+    extLogic = extensionHost.getLogic(info.extId) ?? null
+    import(/* @vite-ignore */ `/extensions/${info.extId}/${info.component}`)
+      .then((mod: { default: Component }) => {
+        extComp = mod.default
+      })
+      .catch((e) => {
+        console.error('[ext] load component', e)
+        extComp = null
+      })
+  })
+
   onMount(async () => {
     initTheme()
     const cfg = await storageService.init()
     config.set(cfg)
     if (cfg) {
       todayIdx = todayIndex(cfg)
-      await Promise.all([loadTodos(), loadMemos()])
+      await loadTodos()
     }
+    // 扩展加载不依赖 config（onboarding 时也加载，进主视图即有扩展 tab）
+    await extensionHost.loadBuiltin()
+    items = [
+      { id: 'calendar', label: '日历', icon: 'grid' },
+      { id: 'todo', label: '待办', icon: 'check' },
+      ...extensionHost.registry.getViews().map((v) => ({
+        id: v.id,
+        label: v.label,
+        icon: v.icon,
+      })),
+      { id: 'settings', label: '设置', icon: 'gear' },
+    ]
     loading = false
   })
 
@@ -104,7 +148,7 @@
     config.set(cfg)
     if (cfg) {
       todayIdx = todayIndex(cfg)
-      await Promise.all([loadTodos(), loadMemos()])
+      await loadTodos()
     }
     navigate('calendar')
     calendar?.refresh()
@@ -118,7 +162,7 @@
     <Onboarding onComplete={handleOnboardingComplete} />
   {:else}
     <div class="flex h-full">
-      <SideNav view={$view} onNavigate={navigate} />
+      <SideNav view={$view} onNavigate={navigate} {items} />
       <div class="relative min-w-0 flex-1">
         {#if $view === 'calendar'}
           <CalendarView
@@ -133,8 +177,6 @@
           />
         {:else if $view === 'todo'}
           <TodoView />
-        {:else if $view === 'memos'}
-          <MemoView />
         {:else if $view === 'settings'}
           <SettingsView
             config={$config}
@@ -142,6 +184,9 @@
             onExport={handleExport}
             onImport={handleImport}
           />
+        {:else if extComp}
+          {@const ExtComp = extComp}
+          <ExtComp logic={extLogic} />
         {/if}
       </div>
     </div>

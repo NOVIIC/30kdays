@@ -43,8 +43,9 @@ export class ExtensionHost {
     if (this.registry.has(manifest.id))
       throw new Error(`extension "${manifest.id}" already loaded`)
 
-    // wasm glue URL 相对 manifest 解析
-    const glueUrl = new URL(manifest.main, manifestUrl).href
+    // wasm glue URL 相对 manifest 解析（manifestUrl 可能是相对路径，需先转绝对）
+    const base = new URL(manifestUrl, window.location.href)
+    const glueUrl = new URL(manifest.main, base).href
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
     const logic = Comlink.wrap<ExtensionWorker>(worker)
     await logic.load(glueUrl, Comlink.proxy(this.hostApi))

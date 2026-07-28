@@ -5,7 +5,6 @@ import type { LifeConfig } from '../domain/lifeConfig'
 import { totalDays } from '../domain/lifeConfig'
 import { createDayIndex, setFlags, getFlags } from '../domain/dayIndex'
 import type { Todo } from '../domain/todo'
-import type { Memo } from '../domain/memo'
 
 class StorageService {
   backend: StorageBackend | null = null
@@ -110,16 +109,6 @@ class StorageService {
   async saveTodos(todos: Todo[]): Promise<void> {
     if (!this.backend) return
     await this.backend.writeDoc('todos.json', todos)
-  }
-
-  async loadMemos(): Promise<Memo[]> {
-    if (!this.backend) return []
-    return (await this.backend.readDoc<Memo[]>('memos.json')) ?? []
-  }
-
-  async saveMemos(memos: Memo[]): Promise<void> {
-    if (!this.backend) return
-    await this.backend.writeDoc('memos.json', memos)
   }
 
   /** 通用 JSON 文档读写（扩展经 host.doc.* 走到这里，不再加专用方法） */

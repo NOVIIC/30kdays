@@ -1,22 +1,13 @@
 <script lang="ts">
-  import type { View } from '../stores/router'
-
   let {
     view,
     onNavigate,
+    items,
   }: {
-    view: View
-    onNavigate: (v: View) => void
+    view: string
+    onNavigate: (v: string) => void
+    items: { id: string; label: string; icon: string }[]
   } = $props()
-
-  type Item = { id: View; label: string; icon: string }
-
-  const items: Item[] = [
-    { id: 'calendar', label: '日历', icon: 'grid' },
-    { id: 'todo', label: '待办', icon: 'check' },
-    { id: 'memos', label: '备忘', icon: 'note' },
-    { id: 'settings', label: '设置', icon: 'gear' },
-  ]
 </script>
 
 {#snippet navIcon(icon: string)}

@@ -1,0 +1,17 @@
+{
+  "id": "memo",
+  "name": "备忘",
+  "version": "0.1.0",
+  "main": "pkg/memo_ext.js",
+  "permissions": ["doc:read", "doc:write"],
+  "contributes": {
+    "views": [
+      {
+        "id": "memos",
+        "label": "备忘",
+        "icon": "note",
+        "component": "views/MemoView.svelte"
+      }
+    ]
+  }
+}

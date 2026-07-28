@@ -35,4 +35,13 @@ export class Registry {
     }
     return views
   }
+
+  /** 按 view id 反查扩展 id + 组件路径（供 App 动态加载） */
+  getViewForRoute(viewId: string): { extId: string; component: string } | null {
+    for (const m of this.extensions.values()) {
+      const v = m.manifest.contributes.views?.find((vv) => vv.id === viewId)
+      if (v) return { extId: m.manifest.id, component: v.component }
+    }
+    return null
+  }
 }

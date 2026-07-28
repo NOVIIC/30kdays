@@ -1,9 +1,7 @@
 import { writable, derived } from 'svelte/store'
 
-export type View = 'calendar' | 'todo' | 'memos' | 'settings'
+export type View = string
 export type Route = { view: View; params: Record<string, string> }
-
-const VIEWS: View[] = ['calendar', 'todo', 'memos', 'settings']
 
 function parseRoute(): Route {
   const hash = window.location.hash.slice(1) || ''
@@ -15,8 +13,7 @@ function parseRoute(): Route {
       params[k] = v || ''
     }
   }
-  const v = VIEWS.includes(view as View) ? (view as View) : 'calendar'
-  return { view: v, params }
+  return { view: view || 'calendar', params }
 }
 
 export function createRouter() {

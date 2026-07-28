@@ -2,7 +2,7 @@
  * 内置扩展清单。
  *
  * PWA 壳不能扫文件系统，内置扩展靠这份硬编码清单发现。
- * 阶段 1 第二步接入 memo 时在此追加。
+ * 路径是构建产物/dev server 服务的 URL（相对站点根）。
  */
 export interface BuiltinExtension {
   id: string
@@ -11,5 +11,5 @@ export interface BuiltinExtension {
 }
 
 export const builtinExtensions: BuiltinExtension[] = [
-  // { id: 'memo', manifestUrl: '/extensions/memo/manifest.json' },
+  { id: 'memo', manifestUrl: '/extensions/memo/manifest.json' },
 ]

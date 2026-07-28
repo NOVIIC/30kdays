@@ -22,6 +22,7 @@ const ext: { load: (glueUrl: string, host: HostApi) => Promise<void> } = {
     g.host_doc_write = (name: string, data: unknown) => host.doc.write(name, data)
     g.host_log_info = (...args: unknown[]) => host.log.info(...args)
     g.host_log_warn = (...args: unknown[]) => host.log.warn(...args)
+    g.host_uuid = () => crypto.randomUUID()
 
     const mod = (await import(/* @vite-ignore */ glueUrl)) as {
       default: () => Promise<void>

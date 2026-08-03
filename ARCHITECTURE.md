@@ -30,9 +30,9 @@
 
 ### 2.2 内置扩展
 
-| 扩展 | 职责 |
-|------|------|
-| `memo` | 与日期无关的碎片笔记；视图 tab + 文档读写 |
+| 扩展   | 职责                                                           |
+| ------ | -------------------------------------------------------------- |
+| `memo` | 与日期无关的碎片笔记；视图 tab + 文档读写                      |
 | `todo` | 无日期 / 截止日 / 区间打卡；视图、编辑器相关贡献、格子覆盖标记 |
 
 ### 2.3 外部扩展（另仓，后期）
@@ -76,18 +76,19 @@
 /
   ARCHITECTURE.md
   package.json                 # pnpm；Vite 构建前端 / PWA
-  Cargo.toml                   # Rust workspace
-  src/                         # 共享前端
-    domain/
-    grid/
-    storage/
-    extensions/                # Host：types / loader / registry / host / worker
-    stores/
-    ui/
-    app.css
-    main.ts
+  Cargo.toml                   # Rust workspace（阶段 3+）
+  public/                      # 不经打包的静态资源（favicon 等）
+  src/                         # 共享前端（PWA 与 Tauri webview 共用）
+    domain/                    # 核心领域纯逻辑：人生配置、日索引、日记模型
+    grid/                      # 人生网格：布局、相机、Canvas 渲染、命中检测
+    storage/                   # 存储抽象与各壳实现（PWA: OPFS；桌面: 本地目录）
+    extensions/                # Extension Host：manifest、权限、Worker、贡献点、Host API
+    stores/                    # 前端状态：配置、主题、路由、存储状态等
+    ui/                        # Svelte 界面：壳、Onboarding、日历、日记、设置
+    app.css                    # 全局样式（含 Tailwind）
+    main.ts                    # 应用启动入口
   src-tauri/                   # 桌面壳：FS、同步汇合、Agent 挂载、外部扩展目录
-  extensions/                  # 内置扩展包
+  extensions/                  # 内置扩展包（随主应用发布）
     memo/
       manifest.json
       views/
@@ -96,8 +97,8 @@
     todo/
       …
   crates/                      # 宿主侧可共享的 Rust 库（扩展加载辅助、Agent 接口等）
-  tests/
-  e2e/
+  tests/                       # 单元测试（domain / grid 等）
+  e2e/                         # 端到端测试
 ```
 
 外部扩展（独立 git 仓库）建议形态：
@@ -140,11 +141,11 @@
         "id": "memos",
         "label": "备忘",
         "icon": "note",
-        "component": "views/MemoView.js"
-      }
-    ]
+        "component": "views/MemoView.js",
+      },
+    ],
     // 后续：dayEditorTools、gridOverlays、settings、nativeAgents …
-  }
+  },
 }
 ```
 
@@ -152,23 +153,23 @@
 
 ### 5.3 贡献点（按阶段启用）
 
-| 贡献点 | 用途 | 典型消费者 |
-|--------|------|------------|
-| `views` | 导航 tab + 路由 + 懒加载视图 | memo、todo |
-| `gridOverlays` | 总览改色 / 高清声明式绘制指令 | todo 截止点、时长热力 |
-| `dayEditorTools` | 日记弹层工具区 | todo |
-| `settings` | 设置页分区 | 需配置的扩展 |
-| `nativeAgents` | 桌面进程内 Agent | 外部采集类扩展 |
+| 贡献点           | 用途                          | 典型消费者            |
+| ---------------- | ----------------------------- | --------------------- |
+| `views`          | 导航 tab + 路由 + 懒加载视图  | memo、todo            |
+| `gridOverlays`   | 总览改色 / 高清声明式绘制指令 | todo 截止点、时长热力 |
+| `dayEditorTools` | 日记弹层工具区                | todo                  |
+| `settings`       | 设置页分区                    | 需配置的扩展          |
+| `nativeAgents`   | 桌面进程内 Agent              | 外部采集类扩展        |
 
 ### 5.4 Host API（首期与演进）
 
-| 能力 | 权限 | 说明 |
-|------|------|------|
-| `host.doc.read/write` | `doc:read` / `doc:write` | 通用 JSON 文档（如 `memos.json`、`todos.json`） |
-| `host.log.*` | — | 调试日志 |
-| `host.grid.getDayMeta` | `grid:read` | 格子上下文（后期） |
-| `host.config.get/set` | `config:*` | 扩展私有配置命名空间（后期） |
-| `host.net.fetch` | `net:fetch` | 带白名单的网络（若扩展需要；采集类优先走 Agent） |
+| 能力                   | 权限                     | 说明                                             |
+| ---------------------- | ------------------------ | ------------------------------------------------ |
+| `host.doc.read/write`  | `doc:read` / `doc:write` | 通用 JSON 文档（如 `memos.json`、`todos.json`）  |
+| `host.log.*`           | —                        | 调试日志                                         |
+| `host.grid.getDayMeta` | `grid:read`              | 格子上下文（后期）                               |
+| `host.config.get/set`  | `config:*`               | 扩展私有配置命名空间（后期）                     |
+| `host.net.fetch`       | `net:fetch`              | 带白名单的网络（若扩展需要；采集类优先走 Agent） |
 
 格子覆盖采用**声明式指令**由宿主绘制（总览：颜色/强度混入像素；高清：dot/fill/text 等），扩展不直接持有 Canvas 上下文。
 
@@ -201,10 +202,10 @@ memos.json          # 由 memo 扩展使用
 
 ### 6.3 实现
 
-| 壳 | 后端 |
-|----|------|
-| PWA | OPFS（Worker 内 I/O；索引可用同步 access handle 做单字节补丁） |
-| Tauri | 本地数据目录上的原生文件系统 |
+| 壳    | 后端                                                           |
+| ----- | -------------------------------------------------------------- |
+| PWA   | OPFS（Worker 内 I/O；索引可用同步 access handle 做单字节补丁） |
+| Tauri | 本地数据目录上的原生文件系统                                   |
 
 媒体：Worker/原生侧缩放压缩为 WebP（长边上限约 2048），缩略图约 256。多标签写用 Web Locks 串行；变更可用 BroadcastChannel 通知同源其它页（PWA）。
 
@@ -321,18 +322,18 @@ PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面�
 
 ## 13. 决策记录（摘要）
 
-| 主题 | 选择 |
-|------|------|
-| 产品结构 | 核心日历+日记；memo/todo 内置扩展；重采集类另仓外置 |
-| 前端 | 单一 `src/`，Svelte 5 + Vite + TS |
-| 网格 | Canvas 2D + 离屏缓存 + 总览像素直写 |
-| 扩展逻辑 | 默认 Worker + wasm；视图 Svelte |
-| 桌面特有能力 | Native Agent（Tauri 进程） |
-| PWA 存储 | OPFS |
-| 桌面存储 | 本地数据文件夹 |
-| 同步 | 桌面汇合 + 多副本可合并；实现库后期定 |
-| 仓库 | `src` + `src-tauri` + `extensions/*` + `crates/*` |
-| 外置扩展 | 另仓构建 `dist/`；PWA/桌面安装流后期定 |
+| 主题         | 选择                                                |
+| ------------ | --------------------------------------------------- |
+| 产品结构     | 核心日历+日记；memo/todo 内置扩展；重采集类另仓外置 |
+| 前端         | 单一 `src/`，Svelte 5 + Vite + TS                   |
+| 网格         | Canvas 2D + 离屏缓存 + 总览像素直写                 |
+| 扩展逻辑     | 默认 Worker + wasm；视图 Svelte                     |
+| 桌面特有能力 | Native Agent（Tauri 进程）                          |
+| PWA 存储     | OPFS                                                |
+| 桌面存储     | 本地数据文件夹                                      |
+| 同步         | 桌面汇合 + 多副本可合并；实现库后期定               |
+| 仓库         | `src` + `src-tauri` + `extensions/*` + `crates/*`   |
+| 外置扩展     | 另仓构建 `dist/`；PWA/桌面安装流后期定              |
 
 本文随实现推进修订；标「后期定稿」的章节在进入对应阶段前再开决策。
 `}

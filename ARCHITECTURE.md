@@ -26,7 +26,7 @@
 - Canvas 网格渲染与输入（布局、相机、总览/高清、命中检测）
 - 存储抽象与各壳后端
 - 应用壳：Onboarding、侧栏/底部导航骨架、日历视图、日记编辑器、设置（主题、寿命、存储占用、同步入口等）
-- **Extension Host**：扫描/加载扩展、权限、Worker、贡献点注册、Host API
+- **Extension Host**：扫描/加载扩展、权限、Worker、贡献点注册、派发点与中间件链、Host API
 
 ### 2.2 内置扩展
 
@@ -58,13 +58,15 @@
      │ Worker 跑扩展    │                  │ Worker 跑扩展    │
      │ wasm             │                  │ wasm             │
      │                  │                  │ + Native Agent   │
+     │                  │                  │ （wasm，宿主内嵌  │
+     │                  │                  │   运行时加载）    │
      │                  │                  │ + 同步汇合服务    │
      └─────────────────┘                  └─────────────────┘
 ```
 
 - **一套 `src/`**：PWA 与 Tauri webview 共用。
 - **PWA**：应用数据与（后期）已安装外部扩展均落在 OPFS。
-- **Tauri**：应用数据写入用户选定/默认的数据文件夹；扩展可带仅桌面可用的 Native Agent（如本机 HTTP 服务）。
+- **Tauri**：应用数据写入用户选定/默认的数据文件夹；扩展可带仅桌面可用的 Native Agent（wasm 产物，由 Tauri 进程内嵌运行时加载，能力经宿主函数注入）。
 
 ---
 
@@ -82,21 +84,20 @@
     domain/                    # 核心领域纯逻辑：人生配置、日索引、日记模型
     grid/                      # 人生网格：布局、相机、Canvas 渲染、命中检测
     storage/                   # 存储抽象与各壳实现（PWA: OPFS；桌面: 本地目录）
-    extensions/                # Extension Host：manifest、权限、Worker、贡献点、Host API
+    extensions/                # Extension Host：manifest、权限、Worker、派发点/中间件链、Host API
     stores/                    # 前端状态：配置、主题、路由、存储状态等
     ui/                        # Svelte 界面：壳、Onboarding、日历、日记、设置
     app.css                    # 全局样式（含 Tailwind）
     main.ts                    # 应用启动入口
-  src-tauri/                   # 桌面壳：FS、同步汇合、Agent 挂载、外部扩展目录
+  src-tauri/                   # 桌面壳：FS、同步汇合、Agent 运行时挂载、外部扩展目录
   extensions/                  # 内置扩展包（随主应用发布）
     memo/
       manifest.json
-      views/
-      src/                     # Rust → logic.wasm
-      Cargo.toml
+      views/                   # Svelte 源码，由主应用构建管线打包
+      src/                     # TS → logic.js（内置扩展逻辑默认用 TS）
     todo/
       …
-  crates/                      # 宿主侧可共享的 Rust 库（扩展加载辅助、Agent 接口等）
+  crates/                      # 宿主侧可共享的 Rust 库（Agent 宿主接口等；阶段 3+）
   tests/                       # 单元测试（domain / grid 等）
   e2e/                         # 端到端测试
 ```
@@ -106,14 +107,13 @@
 ```text
 <ext-repo>/
   manifest.json
-  views/                       # 源码
-  crates/
-    logic/                     # → logic.wasm
-    agent/                     # 可选，仅桌面
-  dist/                        # 发布物：manifest + wasm + 预编译视图 JS（+ agent 产物）
+  views/                       # 源码 → 预编译视图 JS
+  logic/                       # 可选：TS → logic.js 或 Rust → logic.wasm
+  agent/                       # 可选，仅桌面：Rust → agent.wasm
+  dist/                        # 发布物：manifest + 预编译视图 JS（+ 可选 logic / agent 产物）
 ```
 
-运行时加载的是 **`dist/` 预编译产物**（主应用无法在运行时编译外仓的 `.svelte` 源码）。
+运行时加载的是 **`dist/` 预编译产物**（主应用无法在运行时编译外仓的 `.svelte` / TS 源码）。
 
 ---
 
@@ -121,8 +121,8 @@
 
 ### 5.1 运行时
 
-- **默认**：每个扩展在 **Web Worker** 中加载 `logic.wasm`；主线程 Svelte 视图经 RPC（如 Comlink）调用逻辑；能力经 Host API 注入。
-- **桌面可选 Native Agent**：由 manifest 声明；由 Tauri 进程加载与生命周期管理（例如常驻 HTTP 服务）。Agent 与 UI/wasm 通过宿主约定通信；聚合结果写入存储，再由展示侧读取。
+- **逻辑（可选）**：manifest `main` 声明，载体为 **JS 模块或 wasm**，均在 **Web Worker** 中加载，遵守同一 RPC 契约（如 Comlink）；主线程 Svelte 视图经 RPC 调用逻辑；能力经 Host API 注入。无逻辑层的纯视图扩展同样成立。内置扩展默认 TS → JS；需要 Rust 性能或与桌面侧复用代码时选 wasm。
+- **桌面可选 Native Agent**：以 **wasm 产物**分发，由 Tauri 进程内嵌的 wasm 运行时加载并管理生命周期（例如常驻 HTTP 服务）；能力（HTTP 监听、定时器、受限 FS 等）由**宿主函数**注入，不挂载原生代码。Agent 聚合结果写入存储，再由展示侧读取。运行时选型与宿主函数 ABI 在阶段 4 定稿。
 - **平台裁剪**：manifest 声明适用平台与贡献点；同一扩展在 PWA 与桌面可启用不同子集（例如仅桌面启用采集 Agent，两端都启用视图/格子覆盖）。
 
 ### 5.2 Manifest（首期子集，随后扩展）
@@ -132,7 +132,7 @@
   "id": "memo",
   "name": "备忘",
   "version": "1.0.0",
-  "main": "logic.wasm",
+  "main": "logic.js", // 可选；亦可为 logic.wasm
   "permissions": ["doc:read", "doc:write"],
   "platforms": ["pwa", "desktop"],
   "contributes": {
@@ -149,7 +149,7 @@
 }
 ```
 
-内置扩展开发期可使用 `.svelte` 源码并由主应用构建管线打包；字段在发布物中与外置 `dist` 对齐。
+内置扩展开发期可使用 `.svelte` 与 TS 源码并由主应用构建管线打包；字段在发布物中与外置 `dist` 对齐。
 
 ### 5.3 贡献点（按阶段启用）
 
@@ -160,6 +160,14 @@
 | `dayEditorTools` | 日记弹层工具区                | todo                  |
 | `settings`       | 设置页分区                    | 需配置的扩展          |
 | `nativeAgents`   | 桌面进程内 Agent              | 外部采集类扩展        |
+
+贡献点的统一执行模型为**派发点 + 中间件链**：
+
+- 核心把每个可扩展处定义为派发点；扩展经 manifest 声明挂接的派发点与处理入口，Host 据此把中间件挂成链。
+- **核心默认实现位于链尾兜底**；中间件可前置/后置加工、改写链上数据，或**短路**。
+- 短路默认实现即「覆盖核心功能」——独占替换是短路的特例，无需单独机制。
+- 约束：性能关键路径不走链（如网格逐帧渲染，`gridOverlays` 维持声明式指令预取、宿主本地绘制）；多扩展短路同一派发点按优先级仲裁（用户选择 / 安装顺序，细则随 Host 实现定稿）；Host 提供各派发点注册情况查询，保证行为来源可观测。
+- 首期派发点：`gridOverlays`、`dayEditorTools`（多扩展共存型）；`dayEditor` 渲染（可短路/覆盖型）。更多核心逻辑（如 doc 读写管道）随阶段开放。
 
 ### 5.4 Host API（首期与演进）
 
@@ -241,7 +249,7 @@ type LifeConfig = {
 
 ### 8.2 DayIndex
 
-内存 `Uint8Array`，长度 = 总天数：`bit0` 有文字，`bit1` 有图片（持久化到 `index.bin`）。扩展相关的格子提示（如进行中 todo）由扩展经覆盖层或运行时标志提供，不塞进核心持久化位定义之外的约定时需在贡献点契约中写明。
+内存 `Uint8Array`，长度 = 总天数：`bit0` 有文字，`bit1` 有图片（持久化到 `index.bin`，文件带格式版本头）。扩展相关的格子提示（如进行中 todo）由扩展经覆盖层或运行时标志提供，不塞进核心持久化位定义之外的约定时需在贡献点契约中写明。
 
 ### 8.3 DayDoc
 
@@ -250,6 +258,7 @@ type DayDoc = {
   text: string
   media: { id: string; name: string; w: number; h: number; type: string }[]
   updatedAt: number
+  version: number
 }
 ```
 
@@ -308,7 +317,7 @@ type TodoSchedule =
 
 ### 阶段 2 — Host + 内置扩展
 
-完善 Extension Host（Worker、manifest、`views`、`doc.*` / `log.*`）。落地 `memo`、`todo`（含 `gridOverlays` / 编辑器贡献等 todo 所需契约）。导航与路由由核心项 + 扩展贡献合并。
+完善 Extension Host（Worker、manifest、`views`、派发点与中间件链、`doc.*` / `log.*`）。落地 `memo`、`todo`（含 `gridOverlays` / 编辑器贡献等 todo 所需契约）。导航与路由由核心项 + 扩展贡献合并。
 
 ### 阶段 3 — Tauri + 同步
 
@@ -316,7 +325,7 @@ type TodoSchedule =
 
 ### 阶段 4 — 外部扩展
 
-PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面：用户扩展目录 + Native Agent。以独立仓库的采集/展示扩展验证端到端（WakaTime 兼容接收 → 聚合 → 同步 → 两端热力）。**安装 UX、签名、Agent 打包等细节本阶段开始前再定。**
+PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面：用户扩展目录 + Native Agent（wasm，内嵌运行时加载）。以独立仓库的采集/展示扩展验证端到端（WakaTime 兼容接收 → 聚合 → 同步 → 两端热力）。**安装 UX、签名、宿主函数 ABI 等细节本阶段开始前再定。**
 
 ---
 
@@ -327,8 +336,9 @@ PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面�
 | 产品结构     | 核心日历+日记；memo/todo 内置扩展；重采集类另仓外置 |
 | 前端         | 单一 `src/`，Svelte 5 + Vite + TS                   |
 | 网格         | Canvas 2D + 离屏缓存 + 总览像素直写                 |
-| 扩展逻辑     | 默认 Worker + wasm；视图 Svelte                     |
-| 桌面特有能力 | Native Agent（Tauri 进程）                          |
+| 扩展逻辑     | Worker 内 JS 或 wasm（可选）；视图 Svelte           |
+| 覆盖机制     | 派发点 + 中间件链；默认实现兜底，短路即覆盖         |
+| 桌面特有能力 | Native Agent：wasm，Tauri 内嵌运行时 + 宿主函数     |
 | PWA 存储     | OPFS                                                |
 | 桌面存储     | 本地数据文件夹                                      |
 | 同步         | 桌面汇合 + 多副本可合并；实现库后期定               |
@@ -336,4 +346,3 @@ PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面�
 | 外置扩展     | 另仓构建 `dist/`；PWA/桌面安装流后期定              |
 
 本文随实现推进修订；标「后期定稿」的章节在进入对应阶段前再开决策。
-`}

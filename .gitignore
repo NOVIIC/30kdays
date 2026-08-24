@@ -1,5 +1,6 @@
 .worktree/
 node_modules/
+crt.md
 dist/
 dist-ssr/
 target/

@@ -97,11 +97,7 @@ export function isValidLifeConfig(config: unknown): config is LifeConfig {
 export function totalDays(config: LifeConfig): number {
   const birth = parseISODate(config.birthdate)
   const d = new Date(birth)
-  const end = Date.UTC(
-    d.getUTCFullYear() + config.lifespanYears,
-    d.getUTCMonth(),
-    d.getUTCDate(),
-  )
+  const end = Date.UTC(d.getUTCFullYear() + config.lifespanYears, d.getUTCMonth(), d.getUTCDate())
   return (end - birth) / MS_PER_DAY
 }
 

@@ -1,13 +1,60 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 设计系统：浅色纸张感为主线，深色可选。
+ * 组件只使用 Tailwind 语义类（bg-bg、text-ink、border-line、bg-accent…），不写死颜色；
+ * 主题切换 = 在 <html> 上切换 .dark 类。Canvas 侧 GridColors 与本文件的变量同源。
+ */
 :root {
-  color-scheme: light dark;
-  font-family: system-ui, 'Segoe UI', sans-serif;
-  line-height: 1.5;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+  --bg: #f6f2e9;
+  --bg-raised: #fdfbf5;
+  --bg-sunken: #ede9dd;
+  --ink: #2b2823;
+  --ink-soft: #6f6a60;
+  --ink-faint: #a39d90;
+  --line: #e3ded0;
+  --line-strong: #d2ccbc;
+  --accent: #c2611e;
+  --accent-strong: #a9521a;
+  --accent-soft: #f3e4d3;
+  --accent-contrast: #fffaf3;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #1c1a17;
+  --bg-raised: #242220;
+  --bg-sunken: #141312;
+  --ink: #e8e4db;
+  --ink-soft: #a09a8e;
+  --ink-faint: #6b665c;
+  --line: #33302b;
+  --line-strong: #47423a;
+  --accent: #d98a52;
+  --accent-strong: #e29a68;
+  --accent-soft: #3a2718;
+  --accent-contrast: #221510;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--bg-raised);
+  --color-sunken: var(--bg-sunken);
+  --color-ink: var(--ink);
+  --color-soft: var(--ink-soft);
+  --color-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-contrast: var(--accent-contrast);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', sans-serif;
 }
 
 *,
@@ -20,10 +67,39 @@ html,
 body,
 #app {
   margin: 0;
-  min-height: 100%;
   height: 100%;
 }
 
 body {
-  margin: 0;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* 克制的滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 数字等宽，用于统计与日期 */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }

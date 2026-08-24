@@ -1,7 +1,23 @@
 <script lang="ts">
-  // Phase 1 shell — views land here next.
+  import {
+    createDayIndex,
+    createLifeConfig,
+    FLAG_MEDIA,
+    FLAG_TEXT,
+    setFlag,
+    todayIndex,
+    totalDays,
+  } from '../core/domain'
+  import GridView from './GridView.svelte'
+
+  // 临时演示数据：存储层与 Onboarding 落地前，用于手动验证网格渲染
+  const config = createLifeConfig('2000-01-01', 80)
+  const today = todayIndex(config)
+  const dayIndex = createDayIndex(totalDays(config))
+  for (let i = 0; i < today; i += 97) setFlag(dayIndex, i, FLAG_TEXT, true)
+  for (let i = 50; i < today; i += 211) setFlag(dayIndex, i, FLAG_MEDIA, true)
 </script>
 
-<main class="flex min-h-full items-center justify-center p-6">
-  <h1 class="text-2xl font-medium tracking-tight text-stone-800 dark:text-stone-100">30kdays</h1>
+<main class="h-full">
+  <GridView {config} {dayIndex} {today} />
 </main>

@@ -5,6 +5,7 @@
    */
   import { createLifeConfig, type LifeConfig } from '../core/domain'
   import { config } from '../stores/config'
+  import { updateLifeConfig } from '../stores/storage'
   import { setTheme, themeSetting, type ThemeSetting } from '../stores/theme'
 
   const themeOptions: { id: ThemeSetting; label: string }[] = [
@@ -14,13 +15,19 @@
   ]
 
   let lifespan = $state($config?.lifespanYears ?? 80)
+  let applying = $state(false)
 
-  /** 拖动结束后提交新寿命（内存态）。 */
-  function applyLifespan() {
+  /** 拖动结束后提交新寿命：写盘并迁移日索引（见 stores/storage）。 */
+  async function applyLifespan() {
     const c = $config
-    if (!c || lifespan === c.lifespanYears) return
-    const next: LifeConfig = createLifeConfig(c.birthdate, lifespan)
-    config.set(next)
+    if (!c || applying || lifespan === c.lifespanYears) return
+    applying = true
+    try {
+      const next: LifeConfig = createLifeConfig(c.birthdate, lifespan)
+      await updateLifeConfig(next)
+    } finally {
+      applying = false
+    }
   }
 </script>
 

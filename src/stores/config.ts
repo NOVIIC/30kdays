@@ -1,6 +1,6 @@
 /**
  * 人生配置状态：当前生效的 LifeConfig。
- * 暂为内存态（刷新后回到 Onboarding）；存储层落地后由其在启动时载入。
+ * 启动时由 stores/storage 的 boot() 从存储层载入；Onboarding 提交后写入。
  */
 
 import { writable } from 'svelte/store'

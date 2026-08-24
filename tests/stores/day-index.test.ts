@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest'
+import { get } from 'svelte/store'
+import { createLifeConfig, serializeDayIndex, totalDays } from '../../src/core/domain'
+import { createOpfsStore } from '../../src/core/storage/opfs-store'
+import { dayIndex, loadDayIndex } from '../../src/stores/day-index'
+import { createFakeOpfsRoot } from '../storage/fake-opfs'
+
+const cfg = createLifeConfig('2000-01-01', 80)
+
+describe('loadDayIndex', () => {
+  it('index.bin 不存在时建空并写盘', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    await loadDayIndex(store, cfg)
+    const loaded = get(dayIndex)
+    expect(loaded.length).toBe(totalDays(cfg))
+    expect(loaded.every((b) => b === 0)).toBe(true)
+    // 已写盘：再次读取能拿到序列化后的内容
+    const bytes = await store.readIndex()
+    expect(bytes).not.toBeNull()
+    expect(bytes!.length).toBe(totalDays(cfg) + 1)
+  })
+
+  it('正常载入既有标志位', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    const flags = new Uint8Array(totalDays(cfg))
+    flags[3] = 0b01
+    flags[100] = 0b11
+    await store.writeIndex(serializeDayIndex(flags))
+    await loadDayIndex(store, cfg)
+    const loaded = get(dayIndex)
+    expect(loaded[3]).toBe(0b01)
+    expect(loaded[100]).toBe(0b11)
+  })
+
+  it('长度不足时补零迁移并写盘', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    const short = new Uint8Array(10)
+    short[9] = 0b01
+    await store.writeIndex(serializeDayIndex(short))
+    await loadDayIndex(store, cfg)
+    const loaded = get(dayIndex)
+    expect(loaded.length).toBe(totalDays(cfg))
+    expect(loaded[9]).toBe(0b01)
+    const bytes = await store.readIndex()
+    expect(bytes!.length).toBe(totalDays(cfg) + 1)
+  })
+
+  it('长度超出时截断迁移', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    const long = new Uint8Array(totalDays(cfg) + 5)
+    long[totalDays(cfg) - 1] = 0b10
+    long[totalDays(cfg) + 4] = 0b01 // 超出部分应被丢弃
+    await store.writeIndex(serializeDayIndex(long))
+    await loadDayIndex(store, cfg)
+    const loaded = get(dayIndex)
+    expect(loaded.length).toBe(totalDays(cfg))
+    expect(loaded[totalDays(cfg) - 1]).toBe(0b10)
+  })
+
+  it('格式版本不符时按全空重建', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    const bytes = serializeDayIndex(new Uint8Array(totalDays(cfg)).fill(0b11))
+    bytes[0] = 99 // 非法版本
+    await store.writeIndex(bytes)
+    await loadDayIndex(store, cfg)
+    const loaded = get(dayIndex)
+    expect(loaded.every((b) => b === 0)).toBe(true)
+  })
+})

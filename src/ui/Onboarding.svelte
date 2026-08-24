@@ -3,14 +3,17 @@
    * Onboarding：首次使用选择生日与预期寿命，生成人生配置。
    */
   import { createLifeConfig } from '../core/domain'
-  import { config } from '../stores/config'
+  import { completeOnboarding } from '../stores/storage'
 
   let birthdate = $state('2000-01-01')
   let lifespan = $state(80)
+  let saving = $state(false)
 
-  /** 提交表单：校验并写入内存态配置。 */
-  function submit() {
-    config.set(createLifeConfig(birthdate, lifespan))
+  /** 提交表单：写入 config.json 与空 index.bin 后进入日历（见 stores/storage）。 */
+  async function submit() {
+    if (saving) return
+    saving = true
+    await completeOnboarding(createLifeConfig(birthdate, lifespan))
   }
 </script>
 
@@ -67,8 +70,9 @@
 
   <button
     onclick={submit}
-    class="rounded-xl bg-accent px-10 py-3 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong"
+    disabled={saving}
+    class="rounded-xl bg-accent px-10 py-3 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong disabled:opacity-50"
   >
-    开始这一生
+    {saving ? '正在初始化…' : '开始这一生'}
   </button>
 </div>

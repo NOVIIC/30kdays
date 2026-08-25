@@ -1,7 +1,7 @@
 /**
  * 存储接线：StorageBackend 单例与启动引导。
  * backend 惰性创建（首次访问时启动存储 Worker）；boot() 在应用启动时调用一次，
- * 载入人生配置与日索引，驱动 App 的三态启动界面（loading / onboarding / ready）。
+ * 载入人生配置与日索引，驱动 App 的启动界面（loading / onboarding / ready / error）。
  */
 
 import { writable } from 'svelte/store'
@@ -11,11 +11,14 @@ import { createStorageBackend, type StorageBackend } from '../core/storage'
 import { config } from './config'
 import { loadDayIndex } from './day-index'
 
-/** 启动状态：loading 读取中 / onboarding 未配置 / ready 就绪。 */
-export type BootState = 'loading' | 'onboarding' | 'ready'
+/** 启动状态：loading 读取中 / onboarding 未配置 / ready 就绪 / error 存储不可用。 */
+export type BootState = 'loading' | 'onboarding' | 'ready' | 'error'
 
 /** 当前启动状态。 */
 export const bootState = writable<BootState>('loading')
+
+/** 启动失败时的错误信息（如 OPFS 不可用）；仅在 error 态下有值。 */
+export const bootError = writable<string | null>(null)
 
 let backend: StorageBackend | null = null
 
@@ -25,16 +28,25 @@ export function getBackend(): StorageBackend {
   return backend
 }
 
-/** 应用启动引导：读配置，有则载入日索引进入日历，无则进入 Onboarding。 */
+/**
+ * 应用启动引导：读配置，有则载入日索引进入日历，无则进入 Onboarding。
+ * 存储不可用（如无 OPFS）或读盘失败时进入 error 态，由 App 展示错误与重试入口。
+ */
 export async function boot(): Promise<void> {
-  const cfg = await getBackend().readConfig()
-  if (cfg === null) {
-    bootState.set('onboarding')
-    return
+  bootState.set('loading')
+  try {
+    const cfg = await getBackend().readConfig()
+    if (cfg === null) {
+      bootState.set('onboarding')
+      return
+    }
+    await loadDayIndex(getBackend(), cfg)
+    config.set(cfg)
+    bootState.set('ready')
+  } catch (err) {
+    bootError.set(err instanceof Error ? err.message : String(err))
+    bootState.set('error')
   }
-  await loadDayIndex(getBackend(), cfg)
-  config.set(cfg)
-  bootState.set('ready')
 }
 
 /** 完成 Onboarding：写入 config.json 与空 index.bin 后进入日历。 */

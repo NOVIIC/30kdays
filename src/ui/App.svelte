@@ -9,7 +9,7 @@
   import { config } from '../stores/config'
   import { dayIndex } from '../stores/day-index'
   import { view } from '../stores/router'
-  import { boot, bootState } from '../stores/storage'
+  import { boot, bootError, bootState } from '../stores/storage'
   import { effectiveTheme, initTheme } from '../stores/theme'
   import CalendarView from './CalendarView.svelte'
   import Onboarding from './Onboarding.svelte'
@@ -28,6 +28,22 @@
 <main class="h-full w-full overflow-hidden bg-bg text-ink">
   {#if $bootState === 'loading'}
     <div class="flex h-full items-center justify-center text-sm text-faint">载入中…</div>
+  {:else if $bootState === 'error'}
+    <div class="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+      <p class="text-sm">无法访问本地存储，应用无法启动。</p>
+      <p class="max-w-md text-xs text-faint">
+        请确认浏览器支持 OPFS（建议使用最新版 Chrome / Edge / Safari），且未处于无痕模式。
+      </p>
+      {#if $bootError}
+        <p class="max-w-md text-xs break-all text-faint">{$bootError}</p>
+      {/if}
+      <button
+        class="rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong"
+        onclick={() => void boot()}
+      >
+        重试
+      </button>
+    </div>
   {:else if $bootState === 'onboarding'}
     <Onboarding />
   {:else if $config}

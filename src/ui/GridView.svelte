@@ -25,7 +25,15 @@
     dayIndex,
     today,
     colors,
-  }: { config: LifeConfig; dayIndex: Uint8Array; today: number; colors: GridColors } = $props()
+    ondayclick,
+  }: {
+    config: LifeConfig
+    dayIndex: Uint8Array
+    today: number
+    colors: GridColors
+    /** 点击某个格子（未拖动）时回调，参数为日索引。 */
+    ondayclick?: (day: number) => void
+  } = $props()
 
   let canvas: HTMLCanvasElement
   let renderer: GridRenderer | null = null
@@ -108,9 +116,11 @@
     function onPointerUp(e: PointerEvent) {
       dragging = false
       if (moved || !layout || !camera || !renderer) return
-      // 视为点击：命中检测并选中
-      renderer.setSelected(hitTest(layout, camera, { x: e.offsetX, y: e.offsetY }))
+      // 视为点击：命中检测、选中并回调（打开日记）
+      const hit = hitTest(layout, camera, { x: e.offsetX, y: e.offsetY })
+      renderer.setSelected(hit)
       renderer.render()
+      if (hit !== null) ondayclick?.(hit)
     }
 
     function onWheel(e: WheelEvent) {
@@ -139,6 +149,13 @@
   $effect(() => {
     renderer?.setColors(colors)
     renderer?.render()
+  })
+
+  // 日索引 / today 变化（如日记保存后标志位更新）→ 重设数据并重绘
+  $effect(() => {
+    if (!renderer || !layout) return
+    renderer.setData(layout, dayIndex, today)
+    renderer.render()
   })
 </script>
 

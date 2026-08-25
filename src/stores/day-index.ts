@@ -4,7 +4,7 @@
  * 按截断/补零迁移，格式版本不符则按全空重建（决策见 crt.md）。
  */
 
-import { writable } from 'svelte/store'
+import { get, writable } from 'svelte/store'
 import type { LifeConfig } from '../core/domain'
 import {
   createDayIndex,
@@ -52,4 +52,23 @@ export async function loadDayIndex(backend: StorageBackend, cfg: LifeConfig): Pr
     return
   }
   dayIndex.set(body)
+}
+
+/**
+ * 更新某天的标志位：与内存现值比较，有变化才更新内存并写盘；
+ * 无变化不写盘（标志位仅在「空↔非空」跳变时变化，天然低频，免防抖）。
+ * 索引越界时忽略。写盘成功后才更新内存态，失败不破坏内存与磁盘的一致性。
+ */
+export async function setDayFlags(
+  backend: StorageBackend,
+  day: number,
+  flags: number,
+): Promise<void> {
+  const current = get(dayIndex)
+  if (day < 0 || day >= current.length) return
+  if (current[day] === flags) return
+  const next = current.slice()
+  next[day] = flags
+  await backend.writeIndex(serializeDayIndex(next))
+  dayIndex.set(next)
 }

@@ -4,6 +4,7 @@
    */
   import { totalDays, type LifeConfig } from '../core/domain'
   import type { GridColors } from '../core/grid'
+  import { navigateToDay } from '../stores/router'
   import GridView from './GridView.svelte'
 
   let {
@@ -22,7 +23,7 @@
 </script>
 
 <div class="relative h-full w-full overflow-hidden">
-  <GridView bind:this={grid} {config} {dayIndex} {today} {colors} />
+  <GridView bind:this={grid} {config} {dayIndex} {today} {colors} ondayclick={navigateToDay} />
 
   <!-- 顶部操作 -->
   <div class="pointer-events-none absolute inset-x-0 top-0 flex justify-end p-4">

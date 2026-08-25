@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { get } from 'svelte/store'
-import { createLifeConfig, serializeDayIndex, totalDays } from '../../src/core/domain'
+import { createLifeConfig, FLAG_TEXT, serializeDayIndex, totalDays } from '../../src/core/domain'
 import { createOpfsStore } from '../../src/core/storage/opfs-store'
-import { dayIndex, loadDayIndex } from '../../src/stores/day-index'
+import { dayIndex, loadDayIndex, setDayFlags } from '../../src/stores/day-index'
 import { createFakeOpfsRoot } from '../storage/fake-opfs'
 
 const cfg = createLifeConfig('2000-01-01', 80)
@@ -65,5 +65,34 @@ describe('loadDayIndex', () => {
     await loadDayIndex(store, cfg)
     const loaded = get(dayIndex)
     expect(loaded.every((b) => b === 0)).toBe(true)
+  })
+})
+
+describe('setDayFlags', () => {
+  it('标志位变化时更新内存并写盘', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    dayIndex.set(new Uint8Array(5))
+    await setDayFlags(store, 2, FLAG_TEXT)
+    expect(get(dayIndex)[2]).toBe(FLAG_TEXT)
+    const bytes = await store.readIndex()
+    expect(bytes![1 + 2]).toBe(FLAG_TEXT) // 首字节为格式版本头
+  })
+
+  it('标志位无变化时不写盘', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    dayIndex.set(new Uint8Array([0, 0, FLAG_TEXT]))
+    const spy = vi.spyOn(store, 'writeIndex')
+    await setDayFlags(store, 2, FLAG_TEXT)
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('索引越界时忽略', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    dayIndex.set(new Uint8Array(3))
+    const spy = vi.spyOn(store, 'writeIndex')
+    await setDayFlags(store, 3, FLAG_TEXT)
+    await setDayFlags(store, -1, FLAG_TEXT)
+    expect(spy).not.toHaveBeenCalled()
+    expect(get(dayIndex).every((b) => b === 0)).toBe(true)
   })
 })

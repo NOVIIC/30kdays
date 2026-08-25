@@ -12,6 +12,7 @@
   import { boot, bootError, bootState } from '../stores/storage'
   import { effectiveTheme, initTheme } from '../stores/theme'
   import CalendarView from './CalendarView.svelte'
+  import DayEditor from './DayEditor.svelte'
   import Onboarding from './Onboarding.svelte'
   import SettingsView from './SettingsView.svelte'
   import SideNav from './SideNav.svelte'
@@ -60,5 +61,7 @@
         {/if}
       </div>
     </div>
+    <!-- 日记编辑器：深链 ?d=<index> 驱动，与当前视图无关 -->
+    <DayEditor />
   {/if}
 </main>

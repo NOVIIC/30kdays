@@ -20,9 +20,24 @@ export type StorageUsage = {
 export type MediaKind = 'full' | 'thumb'
 
 /**
+ * 存储相对路径：段数组（如 ['ext', 'memo', 'memos.json']）。
+ * 各段的安全性由调用方（Extension Host）校验保证，backend 信任并逐段解析；
+ * 段内不允许出现 '/'、'\\'、'.'、'..'（Host 侧校验规则见 core/host）。
+ */
+export type StoragePath = string[]
+
+/** 目录清单：子目录名与文件名列表。 */
+export type DirListing = {
+  /** 子目录名。 */
+  dirs: string[]
+  /** 文件名。 */
+  files: string[]
+}
+
+/**
  * 存储后端统一接口。
  * 文件布局（两壳一致，见 ARCHITECTURE.md §6.2）：
- * config.json / index.bin / days/<n>.json / media/<n>/<id>.webp|.thumb / <name>.json。
+ * config.json / index.bin / days/<n>.json / media/<n>/<id>.webp|.thumb / ext/<id>/…。
  */
 export interface StorageBackend {
   /** 读取人生配置；未初始化（首次使用）返回 null。 */
@@ -47,10 +62,17 @@ export interface StorageBackend {
   /** 删除某天的媒体附件（完整图与缩略图一并删除）。 */
   deleteMedia(day: number, id: string): Promise<void>
 
-  /** 读取通用 JSON 文档（<name>.json，供扩展使用，如 todos.json）；不存在返回 null。 */
-  readDoc(name: string): Promise<unknown | null>
-  /** 写入通用 JSON 文档（<name>.json）。 */
-  writeDoc(name: string, value: unknown): Promise<void>
+  /**
+   * 读取文件字节；不存在返回 null。
+   * 主要供扩展文档使用（经 Host 解析为 ext/<id>/… 路径）。
+   */
+  readFile(path: StoragePath): Promise<Uint8Array | null>
+  /** 写入文件字节（整体覆盖）；缺失的目录逐级创建。 */
+  writeFile(path: StoragePath, data: Uint8Array): Promise<void>
+  /** 列出目录内容；目录不存在返回 null。path 为空数组时列出根目录。 */
+  listDir(path: StoragePath): Promise<DirListing | null>
+  /** 删除文件或目录（目录递归删除）；不存在不报错。 */
+  removeEntry(path: StoragePath): Promise<void>
 
   /** 估计存储用量（整个源的 usage/quota）。 */
   estimateUsage(): Promise<StorageUsage>

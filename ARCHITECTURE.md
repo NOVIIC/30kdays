@@ -134,7 +134,7 @@
   "name": "备忘",
   "version": "1.0.0",
   "main": "logic.js", // 可选；亦可为 logic.wasm
-  "permissions": ["doc:read", "doc:write"],
+  "permissions": ["fs:read", "fs:write"],
   "platforms": ["pwa", "desktop"],
   "contributes": {
     "views": [
@@ -150,7 +150,7 @@
 }
 ```
 
-内置扩展开发期可使用 `.svelte` 与 TS 源码并由主应用构建管线打包；字段在发布物中与外置 `dist` 对齐。
+内置扩展开发期可使用 `.svelte` 与 TS 源码并由主应用构建管线打包；字段在发布物中与外置 `dist` 对齐。**加载机制**：内置扩展在构建期经 `import.meta.glob` 静态收集（`src/core/host/registry.ts`，manifest 立即载入、视图组件懒加载）；外部扩展（阶段 4）走独立的运行时安装路径。
 
 ### 5.3 贡献点（按阶段启用）
 
@@ -172,19 +172,21 @@
 
 ### 5.4 Host API（首期与演进）
 
-| 能力                   | 权限                     | 说明                                             |
-| ---------------------- | ------------------------ | ------------------------------------------------ |
-| `host.doc.read/write`  | `doc:read` / `doc:write` | 通用 JSON 文档（如 `memos.json`、`todos.json`）  |
-| `host.log.*`           | —                        | 调试日志                                         |
-| `host.grid.getDayMeta` | `grid:read`              | 格子上下文（后期）                               |
-| `host.config.get/set`  | `config:*`               | 扩展私有配置命名空间（后期）                     |
-| `host.net.fetch`       | `net:fetch`              | 带白名单的网络（若扩展需要；采集类优先走 Agent） |
+| 能力                   | 权限                     | 说明                                                                  |
+| ---------------------- | ------------------------ | --------------------------------------------------------------------- |
+| `host.fs.*`            | `fs:read` / `fs:write`   | 扩展文件 API：`ext/<ext-id>/` 作用域，字节原语 + JSON 语法糖，见 §6.2 |
+| `host.log.*`           | —                        | 调试日志                                                              |
+| `host.grid.getDayMeta` | `grid:read`              | 格子上下文（后期）                                                    |
+| `host.config.get/set`  | `config:*`               | 扩展私有配置命名空间（后期）                                          |
+| `host.net.fetch`       | `net:fetch`              | 带白名单的网络（若扩展需要；采集类优先走 Agent）                      |
 
 格子覆盖采用**声明式指令**由宿主绘制（总览：颜色/强度混入像素；高清：dot/fill/text 等），扩展不直接持有 Canvas 上下文。
 
+`host.fs.*` 的路径以**段数组**传递而非字符串：Host 逐段校验（拒绝空段、`.`/`..`、分隔符与控制字符、限长限深）后拼 `ext/<ext-id>/` 前缀，后端逐段取句柄——没有字符串解析环节，目录穿越在结构上不可能。字节为原语（`readFile`/`writeFile`），JSON 为语法糖（`readJson`/`writeJson`），扩展可存任意格式。实现见 `src/core/host/`（`paths.ts` 校验解析、`fs.ts` 门面）。
+
 ### 5.5 视图与权限
 
-- 视图在主线程，可操作 DOM；读写数据与网络一律走 Host API。
+- 视图在主线程，可操作 DOM；渲染时经 prop 注入 `ExtensionContext`（`{ extId, fs, log }`），读写数据与网络一律走 Host API，fs 按 manifest 权限门控。
 - 内置扩展权限随应用授予。
 - 外部扩展安装、签名与权限 UX 后期定稿。
 
@@ -194,7 +196,7 @@
 
 ### 6.1 接口
 
-统一 `StorageBackend`：配置、日索引、按天文档与媒体、通用 `readDoc`/`writeDoc`、用量估计等。PWA 与 Tauri 提供不同实现，上层与扩展只依赖接口。
+统一 `StorageBackend`：配置、日索引、按天文档与媒体、通用文件读写（`readFile`/`writeFile`/`listDir`/`removeEntry`，段数组路径）、用量估计等。PWA 与 Tauri 提供不同实现，上层与扩展只依赖接口。
 
 ### 6.2 文件布局（逻辑树，两壳一致）
 
@@ -204,10 +206,13 @@ index.bin
 days/<n>.json
 media/<n>/<id>.webp
 media/<n>/<id>.thumb
-todos.json          # 由 todo 扩展使用
-memos.json          # 由 memo 扩展使用
-# 其它扩展文档按约定命名
+ext/<ext-id>/…        # 每个扩展一个独立文件夹，内部结构由扩展自定
+                      #（如 ext/memo/memos.json、ext/todo/todos.json）
 ```
+
+扩展只持有相对路径，Extension Host 校验后拼上 `ext/<ext-id>/` 前缀再交给存储后端（路径以段数组传递，安全性见 §5.4）。JSON 文档可与同步层做结构化合并；其它格式按不透明文件整体合并。
+
+**数据保留**：停用或卸载扩展不自动删除 `ext/<ext-id>/` 数据；用户在设置的存储管理中手动清理。
 
 ### 6.3 实现
 
@@ -303,7 +308,7 @@ type TodoSchedule =
 
 - 桌面：左侧图标导航；移动：底部 tab。日历为默认主视图；扩展 `views` 并入导航与路由。
 - 日记：原生 `<dialog showModal>`；history 返回关闭；深链 `?d=<index>`；防抖自动保存。
-- 设置：寿命、主题、存储占用、同步与导出导入等。
+- 设置：寿命、主题、存储管理（用量、扩展数据手动清理）、同步与导出导入等。
 - 错误边界：Svelte 5 `<svelte:boundary>` 包裹关键视图。
 
 技术栈：Svelte 5 + Vite + TypeScript + Tailwind；PWA 用 vite-plugin-pwa 预缓存应用壳；桌面壳 Tauri 2。
@@ -346,5 +351,9 @@ PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面�
 | 同步         | 桌面汇合 + 多副本可合并；实现库后期定               |
 | 仓库         | `src` + `src-tauri` + `extensions/*` + `crates/*`   |
 | 外置扩展     | 另仓构建 `dist/`；PWA/桌面安装流后期定              |
+| 扩展数据     | `ext/<ext-id>/` 文件夹隔离，内部结构扩展自定        |
+| 扩展文件 API | 段数组路径 + Host 校验拼接；字节原语 + JSON 语法糖  |
+| 数据保留     | 停用/卸载扩展不删数据，设置页存储管理手动清理       |
+| 内置扩展加载 | 构建时静态注册表（import.meta.glob）；外置另走路径  |
 
 本文随实现推进修订；标「后期定稿」的章节在进入对应阶段前再开决策。

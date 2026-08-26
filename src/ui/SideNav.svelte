@@ -1,13 +1,15 @@
 <script lang="ts">
   /**
    * 导航骨架：桌面左侧竖向导航，移动端底部标签栏。
-   * 导航项由核心项 + 扩展贡献合并（扩展贡献在阶段 2 接入）。
+   * 导航项由核心项 + 扩展 views 贡献合并（见 stores/host）。
    */
+  import { extensionViews } from '../stores/host'
   import { navigate, view } from '../stores/router'
 
-  /** 导航项：目前只有核心项。 */
+  /** 导航项：核心项在前，扩展贡献按注册顺序在后。 */
   const items = [
     { id: 'calendar', label: '日历', icon: 'grid' },
+    ...extensionViews.map((v) => ({ id: v.id, label: v.label, icon: v.icon })),
     { id: 'settings', label: '设置', icon: 'gear' },
   ]
 </script>
@@ -29,6 +31,14 @@
         cx="19"
         cy="19"
         r="1.6"
+      />
+    </svg>
+  {:else if icon === 'note'}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+      <path
+        d="M5 4.5h14v15H5z M8.5 9h7 M8.5 12.5h7 M8.5 16h4.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       />
     </svg>
   {:else}

@@ -38,5 +38,5 @@
 
 ## 测试约定
 
-- 单元测试位于 `tests/`，由 Vitest 运行（`vite.config.ts` 中 `include: tests/**`），覆盖 domain / grid 等纯逻辑。
+- 单元测试位于 `tests/`，由 Vitest 运行（`vite.config.ts` 中 `include: tests/**`），覆盖 domain / grid / storage / host 等纯逻辑。
 - 端到端测试位于 `e2e/`，由 Playwright 运行，主要经 Chromium 覆盖 Onboarding、网格交互、日记、OPFS 持久化等关键路径；Tauri 侧 e2e 到阶段 3 再定。

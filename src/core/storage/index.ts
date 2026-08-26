@@ -6,7 +6,7 @@
 import * as Comlink from 'comlink'
 import type { StorageBackend } from './backend'
 
-export type { MediaKind, StorageBackend, StorageUsage } from './backend'
+export type { DirListing, MediaKind, StorageBackend, StoragePath, StorageUsage } from './backend'
 
 /**
  * 创建存储后端：启动存储 Worker 并返回 Comlink 代理。

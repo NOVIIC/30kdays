@@ -87,17 +87,43 @@ describe('media/<n>/<id>', () => {
   })
 })
 
-describe('通用文档 readDoc / writeDoc', () => {
-  it('不存在时返回 null', async () => {
+describe('文件 API（readFile / writeFile / listDir / removeEntry）', () => {
+  const enc = new TextEncoder()
+
+  it('文件不存在时 readFile 返回 null', async () => {
     const store = createOpfsStore(createFakeOpfsRoot())
-    expect(await store.readDoc('todos')).toBeNull()
+    expect(await store.readFile(['ext', 'memo', 'memos.json'])).toBeNull()
   })
 
-  it('JSON 往返一致', async () => {
+  it('writeFile 逐级创建目录，字节级往返一致', async () => {
     const store = createOpfsStore(createFakeOpfsRoot())
-    const todos = [{ id: 't1', text: '买菜' }]
-    await store.writeDoc('todos', todos)
-    expect(await store.readDoc('todos')).toEqual(todos)
+    const bytes = enc.encode(JSON.stringify([{ id: 't1', text: '买菜' }]))
+    await store.writeFile(['ext', 'todo', 'archive', 'todos.json'], bytes)
+    expect(await store.readFile(['ext', 'todo', 'archive', 'todos.json'])).toEqual(bytes)
+  })
+
+  it('listDir 区分子目录与文件；目录不存在返回 null', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    expect(await store.listDir(['ext', 'memo'])).toBeNull()
+    await store.writeFile(['ext', 'memo', 'a.json'], enc.encode('1'))
+    await store.writeFile(['ext', 'memo', 'sub', 'b.json'], enc.encode('2'))
+    expect(await store.listDir(['ext', 'memo'])).toEqual({ dirs: ['sub'], files: ['a.json'] })
+  })
+
+  it('removeEntry 删除文件；不存在不报错', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    await store.writeFile(['ext', 'memo', 'a.json'], enc.encode('1'))
+    await store.removeEntry(['ext', 'memo', 'a.json'])
+    expect(await store.readFile(['ext', 'memo', 'a.json'])).toBeNull()
+    await expect(store.removeEntry(['ext', 'memo', 'missing.json'])).resolves.toBeUndefined()
+    await expect(store.removeEntry(['ext', 'missing', 'a.json'])).resolves.toBeUndefined()
+  })
+
+  it('removeEntry 递归删除目录', async () => {
+    const store = createOpfsStore(createFakeOpfsRoot())
+    await store.writeFile(['ext', 'memo', 'sub', 'b.json'], enc.encode('2'))
+    await store.removeEntry(['ext', 'memo'])
+    expect(await store.listDir(['ext', 'memo'])).toBeNull()
   })
 })
 

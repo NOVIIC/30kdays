@@ -86,9 +86,16 @@ class FakeDirectoryHandle {
     return new FakeFileHandle(child)
   }
 
-  /** 删除子项；不存在抛 NotFoundError。 */
-  async removeEntry(name: string): Promise<void> {
+  /** 删除子项；不存在抛 NotFoundError。recursive 选项与真实 OPFS 对齐（内存实现天然整树删除）。 */
+  async removeEntry(name: string, _options?: { recursive?: boolean }): Promise<void> {
     if (!this.node.children.delete(name)) throw notFound(name)
+  }
+
+  /** 异步迭代目录条目，与真实 FileSystemDirectoryHandle.entries() 一致。 */
+  async *entries(): AsyncIterableIterator<[string, { kind: 'directory' | 'file' }]> {
+    for (const [name, child] of this.node.children) {
+      yield [name, { kind: child.kind === 'dir' ? 'directory' : 'file' }]
+    }
   }
 }
 

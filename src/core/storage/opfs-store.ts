@@ -2,12 +2,12 @@
  * OPFS 存储逻辑：以 FileSystemDirectoryHandle 为入参的 StorageBackend 实现。
  * 与 Worker 解耦以便单测（测试注入内存假句柄）；Worker 入口见 storage.worker.ts。
  * 文件布局见 ARCHITECTURE.md §6.2：
- * config.json / index.bin / days/<n>.json / media/<n>/<id>.webp|.thumb / <name>.json。
+ * config.json / index.bin / days/<n>.json / media/<n>/<id>.webp|.thumb / ext/<id>/…。
  */
 
 import type { LifeConfig } from '../domain/life'
 import type { DayDoc } from '../domain/day-doc'
-import type { MediaKind, StorageBackend, StorageUsage } from './backend'
+import type { DirListing, MediaKind, StorageBackend, StoragePath, StorageUsage } from './backend'
 
 /** 判断异常是否为「文件/目录不存在」（OPFS 未命中时抛 NotFoundError）。 */
 function isNotFound(err: unknown): boolean {
@@ -27,8 +27,22 @@ async function dirAt(
   return dir
 }
 
-/** 读取文件内容；不存在返回 null。 */
-async function readFile(dir: FileSystemDirectoryHandle, name: string): Promise<File | null> {
+/** 逐级解析目录路径；不存在（且不创建）时返回 null。 */
+async function dirAtOrNull(
+  root: FileSystemDirectoryHandle,
+  path: string[],
+  create: boolean,
+): Promise<FileSystemDirectoryHandle | null> {
+  try {
+    return await dirAt(root, path, create)
+  } catch (err) {
+    if (isNotFound(err)) return null
+    throw err
+  }
+}
+
+/** 读取目录内文件内容；不存在返回 null。 */
+async function readFileIn(dir: FileSystemDirectoryHandle, name: string): Promise<File | null> {
   try {
     const handle = await dir.getFileHandle(name)
     return await handle.getFile()
@@ -38,8 +52,8 @@ async function readFile(dir: FileSystemDirectoryHandle, name: string): Promise<F
   }
 }
 
-/** 写入文件内容（整体覆盖）。 */
-async function writeFile(
+/** 写入目录内文件内容（整体覆盖）。 */
+async function writeFileIn(
   dir: FileSystemDirectoryHandle,
   name: string,
   data: Blob | Uint8Array | string,
@@ -53,7 +67,7 @@ async function writeFile(
 
 /** 读取 JSON 文件并解析；不存在返回 null。 */
 async function readJson(dir: FileSystemDirectoryHandle, name: string): Promise<unknown | null> {
-  const file = await readFile(dir, name)
+  const file = await readFileIn(dir, name)
   if (file === null) return null
   return JSON.parse(await file.text())
 }
@@ -64,7 +78,7 @@ async function writeJson(
   name: string,
   value: unknown,
 ): Promise<void> {
-  await writeFile(dir, name, JSON.stringify(value))
+  await writeFileIn(dir, name, JSON.stringify(value))
 }
 
 /** 媒体文件名：完整图为 <id>.webp，缩略图为 <id>.thumb。 */
@@ -72,9 +86,23 @@ function mediaFileName(id: string, kind: MediaKind): string {
   return kind === 'full' ? `${id}.webp` : `${id}.thumb`
 }
 
+/** 将存储路径拆成目录段与末段名；路径为空（无末段）时抛错。 */
+function splitPath(path: StoragePath): { dirs: string[]; name: string } {
+  const name = path[path.length - 1]
+  if (name === undefined) throw new Error('存储路径不能为空')
+  return { dirs: path.slice(0, -1), name }
+}
+
+/** FileSystemDirectoryHandle.entries() 的最小类型声明（部分 TS lib 未内置）。 */
+type DirWithEntries = {
+  entries(): AsyncIterableIterator<
+    [string, FileSystemDirectoryHandle | FileSystemFileHandle]
+  >
+}
+
 /**
  * 基于 OPFS 根目录句柄创建 StorageBackend。
- * 每个方法按需解析子目录（days/、media/<n>/），写入时自动创建缺失目录。
+ * 每个方法按需解析子目录（days/、media/<n>/、ext/<id>/…），写入时自动创建缺失目录。
  */
 export function createOpfsStore(root: FileSystemDirectoryHandle): StorageBackend {
   return {
@@ -87,20 +115,17 @@ export function createOpfsStore(root: FileSystemDirectoryHandle): StorageBackend
     },
 
     async readIndex(): Promise<Uint8Array | null> {
-      const file = await readFile(root, 'index.bin')
+      const file = await readFileIn(root, 'index.bin')
       if (file === null) return null
       return new Uint8Array(await file.arrayBuffer())
     },
 
     async writeIndex(bytes: Uint8Array): Promise<void> {
-      await writeFile(root, 'index.bin', bytes)
+      await writeFileIn(root, 'index.bin', bytes)
     },
 
     async readDayDoc(day: number): Promise<DayDoc | null> {
-      const days = await dirAt(root, ['days'], false).catch((err: unknown) => {
-        if (isNotFound(err)) return null
-        throw err
-      })
+      const days = await dirAtOrNull(root, ['days'], false)
       if (days === null) return null
       return (await readJson(days, `${day}.json`)) as DayDoc | null
     },
@@ -112,24 +137,18 @@ export function createOpfsStore(root: FileSystemDirectoryHandle): StorageBackend
 
     async putMedia(day: number, id: string, full: Blob, thumb: Blob): Promise<void> {
       const dir = await dirAt(root, ['media', String(day)], true)
-      await writeFile(dir, mediaFileName(id, 'full'), full)
-      await writeFile(dir, mediaFileName(id, 'thumb'), thumb)
+      await writeFileIn(dir, mediaFileName(id, 'full'), full)
+      await writeFileIn(dir, mediaFileName(id, 'thumb'), thumb)
     },
 
     async getMedia(day: number, id: string, kind: MediaKind): Promise<Blob | null> {
-      const dir = await dirAt(root, ['media', String(day)], false).catch((err: unknown) => {
-        if (isNotFound(err)) return null
-        throw err
-      })
+      const dir = await dirAtOrNull(root, ['media', String(day)], false)
       if (dir === null) return null
-      return await readFile(dir, mediaFileName(id, kind))
+      return await readFileIn(dir, mediaFileName(id, kind))
     },
 
     async deleteMedia(day: number, id: string): Promise<void> {
-      const dir = await dirAt(root, ['media', String(day)], false).catch((err: unknown) => {
-        if (isNotFound(err)) return null
-        throw err
-      })
+      const dir = await dirAtOrNull(root, ['media', String(day)], false)
       if (dir === null) return
       for (const kind of ['full', 'thumb'] as const) {
         await dir.removeEntry(mediaFileName(id, kind)).catch((err: unknown) => {
@@ -138,12 +157,39 @@ export function createOpfsStore(root: FileSystemDirectoryHandle): StorageBackend
       }
     },
 
-    async readDoc(name: string): Promise<unknown | null> {
-      return await readJson(root, `${name}.json`)
+    async readFile(path: StoragePath): Promise<Uint8Array | null> {
+      const { dirs, name } = splitPath(path)
+      const dir = await dirAtOrNull(root, dirs, false)
+      if (dir === null) return null
+      const file = await readFileIn(dir, name)
+      if (file === null) return null
+      return new Uint8Array(await file.arrayBuffer())
     },
 
-    async writeDoc(name: string, value: unknown): Promise<void> {
-      await writeJson(root, `${name}.json`, value)
+    async writeFile(path: StoragePath, data: Uint8Array): Promise<void> {
+      const { dirs, name } = splitPath(path)
+      const dir = await dirAt(root, dirs, true)
+      await writeFileIn(dir, name, data)
+    },
+
+    async listDir(path: StoragePath): Promise<DirListing | null> {
+      const dir = await dirAtOrNull(root, path, false)
+      if (dir === null) return null
+      const listing: DirListing = { dirs: [], files: [] }
+      for await (const [name, handle] of (dir as unknown as DirWithEntries).entries()) {
+        if (handle.kind === 'directory') listing.dirs.push(name)
+        else listing.files.push(name)
+      }
+      return listing
+    },
+
+    async removeEntry(path: StoragePath): Promise<void> {
+      const { dirs, name } = splitPath(path)
+      const dir = await dirAtOrNull(root, dirs, false)
+      if (dir === null) return
+      await dir.removeEntry(name, { recursive: true }).catch((err: unknown) => {
+        if (!isNotFound(err)) throw err
+      })
     },
 
     async estimateUsage(): Promise<StorageUsage> {

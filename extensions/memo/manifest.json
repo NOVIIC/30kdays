@@ -1,0 +1,17 @@
+{
+  "id": "memo",
+  "name": "备忘",
+  "version": "0.1.0",
+  "permissions": ["fs:read", "fs:write"],
+  "platforms": ["pwa", "desktop"],
+  "contributes": {
+    "views": [
+      {
+        "id": "memos",
+        "label": "备忘",
+        "icon": "note",
+        "component": "views/MemoView.svelte"
+      }
+    ]
+  }
+}

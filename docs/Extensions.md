@@ -25,7 +25,7 @@
   "name": "备忘",
   "version": "1.0.0",
   "main": "logic.js", // 可选；亦可为 logic.wasm
-  "permissions": ["doc:read", "doc:write"],
+  "permissions": ["fs:read", "fs:write"],
   "platforms": ["pwa", "desktop"],
   "contributes": {
     "views": [
@@ -42,6 +42,8 @@
 ```
 
 内置扩展开发期可使用 `.svelte` 与 TS 源码，由主应用构建管线打包；发布物字段与外置 `dist` 对齐。
+
+加载机制：内置扩展在构建期经 `import.meta.glob` 静态收集（`src/core/host/registry.ts`，manifest 立即载入、视图组件懒加载、按当前平台过滤）；外部扩展走独立的运行时安装路径。视图渲染时经 prop 注入 `ExtensionContext`（`{ extId, fs, log }`），`fs` 按 manifest 声明的权限门控（未声明 `fs:read`/`fs:write` 则对应操作异步拒绝）。
 
 ## 派发点与中间件链
 
@@ -68,15 +70,26 @@
 
 格子覆盖采用**声明式指令**由宿主绘制（总览：颜色/强度混入像素；高清：dot/fill/text 等），扩展不直接持有 Canvas 上下文。
 
+## 数据存储
+
+每个扩展的数据隔离在 `ext/<ext-id>/` 文件夹内，内部结构由扩展自定：
+
+- 扩展只持有**相对路径（段数组）**；Host 逐段校验（拒绝空段、`.`/`..`、分隔符与控制字符，限长限深）后拼上 `ext/<ext-id>/` 前缀交给存储后端。路径不经字符串解析，目录穿越在结构上不可能。
+- API 以**字节为原语**（`readFile`/`writeFile`），JSON 是语法糖（`readJson`/`writeJson`），扩展可存任意格式。
+- 同步粒度提示：JSON 文档将来可做结构化合并，其它格式按不透明文件整体合并。
+- **数据保留**：停用或卸载扩展不自动删除其数据；用户在设置的存储管理中手动清理。
+
+实现见 `src/core/host/`（`paths.ts` 校验解析、`fs.ts` 门面）。
+
 ## Host API 与权限
 
-| 能力                   | 权限                     | 说明                                             |
-| ---------------------- | ------------------------ | ------------------------------------------------ |
-| `host.doc.read/write`  | `doc:read` / `doc:write` | 通用 JSON 文档（如 `memos.json`、`todos.json`）  |
-| `host.log.*`           | —                        | 调试日志                                         |
-| `host.grid.getDayMeta` | `grid:read`              | 格子上下文（后期）                               |
-| `host.config.get/set`  | `config:*`               | 扩展私有配置命名空间（后期）                     |
-| `host.net.fetch`       | `net:fetch`              | 带白名单的网络（若扩展需要；采集类优先走 Agent） |
+| 能力                   | 权限                     | 说明                                                           |
+| ---------------------- | ------------------------ | -------------------------------------------------------------- |
+| `host.fs.*`            | `fs:read` / `fs:write`   | 扩展文件 API：`ext/<ext-id>/` 作用域，字节原语 + JSON 语法糖   |
+| `host.log.*`           | —                        | 调试日志                                                       |
+| `host.grid.getDayMeta` | `grid:read`              | 格子上下文（后期）                                             |
+| `host.config.get/set`  | `config:*`               | 扩展私有配置命名空间（后期）                                   |
+| `host.net.fetch`       | `net:fetch`              | 带白名单的网络（若扩展需要；采集类优先走 Agent）               |
 
 权限规则：内置扩展权限随应用授予；外部扩展的安装、签名与权限 UX 后期定稿。
 

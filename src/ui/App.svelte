@@ -8,17 +8,21 @@
   import { GRID_COLORS_DARK, GRID_COLORS_LIGHT } from '../core/grid'
   import { config } from '../stores/config'
   import { dayIndex } from '../stores/day-index'
+  import { extensionViews } from '../stores/host'
   import { view } from '../stores/router'
   import { boot, bootError, bootState } from '../stores/storage'
   import { effectiveTheme, initTheme } from '../stores/theme'
   import CalendarView from './CalendarView.svelte'
   import DayEditor from './DayEditor.svelte'
+  import ExtensionView from './ExtensionView.svelte'
   import Onboarding from './Onboarding.svelte'
   import SettingsView from './SettingsView.svelte'
   import SideNav from './SideNav.svelte'
 
   const gridColors = $derived($effectiveTheme === 'dark' ? GRID_COLORS_DARK : GRID_COLORS_LIGHT)
   const today = $derived($config ? todayIndex($config) : -1)
+  /** 当前路由命中的扩展视图（未命中为 undefined，落到日历）。 */
+  const extView = $derived(extensionViews.find((v) => v.id === $view))
 
   onMount(() => {
     initTheme()
@@ -53,6 +57,26 @@
       <div class="relative min-w-0 flex-1">
         {#if $view === 'settings'}
           <SettingsView />
+        {:else if extView !== undefined}
+          <!-- 扩展视图：按 id 重建，错误边界兜底 -->
+          {#key extView.id}
+            <svelte:boundary>
+              <ExtensionView view={extView} />
+              {#snippet failed(_error, reset)}
+                <div
+                  class="flex h-full flex-col items-center justify-center gap-4 px-6 text-center"
+                >
+                  <p class="text-sm">扩展视图「{extView.label}」加载失败。</p>
+                  <button
+                    class="rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong"
+                    onclick={reset}
+                  >
+                    重试
+                  </button>
+                </div>
+              {/snippet}
+            </svelte:boundary>
+          {/key}
         {:else}
           <!-- 配置变化（如寿命调整）时重建日历 -->
           {#key $config}

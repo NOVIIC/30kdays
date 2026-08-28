@@ -95,9 +95,7 @@ function splitPath(path: StoragePath): { dirs: string[]; name: string } {
 
 /** FileSystemDirectoryHandle.entries() 的最小类型声明（部分 TS lib 未内置）。 */
 type DirWithEntries = {
-  entries(): AsyncIterableIterator<
-    [string, FileSystemDirectoryHandle | FileSystemFileHandle]
-  >
+  entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]>
 }
 
 /**

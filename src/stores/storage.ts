@@ -20,6 +20,9 @@ export const bootState = writable<BootState>('loading')
 /** 启动失败时的错误信息（如 OPFS 不可用）；仅在 error 态下有值。 */
 export const bootError = writable<string | null>(null)
 
+/** 持久化存储状态：null=不支持或未知，true=已持久化，false=未持久化（可在设置页申请）。 */
+export const storagePersisted = writable<boolean | null>(null)
+
 let backend: StorageBackend | null = null
 
 /** 获取 StorageBackend 单例；首次调用时创建存储 Worker。 */
@@ -43,6 +46,7 @@ export async function boot(): Promise<void> {
     await loadDayIndex(getBackend(), cfg)
     config.set(cfg)
     bootState.set('ready')
+    void ensurePersistence()
   } catch (err) {
     bootError.set(err instanceof Error ? err.message : String(err))
     bootState.set('error')
@@ -56,6 +60,35 @@ export async function completeOnboarding(cfg: LifeConfig): Promise<void> {
   await b.writeIndex(serializeDayIndex(createDayIndex(totalDays(cfg))))
   config.set(cfg)
   bootState.set('ready')
+  void ensurePersistence()
+}
+
+/**
+ * 启动时自动确保持久化存储：已持久化则仅记录状态，未持久化则自动申请一次。
+ * API 不可用或调用失败时保持 null（设置页据此隐藏申请入口）。
+ * 失败不影响启动，故内部吞错并以 void 调用。
+ */
+export async function ensurePersistence(): Promise<void> {
+  const mgr = typeof navigator !== 'undefined' ? navigator.storage : undefined
+  if (!mgr?.persisted || !mgr?.persist) return
+  try {
+    storagePersisted.set((await mgr.persisted()) || (await mgr.persist()))
+  } catch {
+    storagePersisted.set(null)
+  }
+}
+
+/** 设置页手动申请持久化存储（自动申请被拒后的重试入口）；返回是否已持久化。 */
+export async function requestPersistence(): Promise<boolean> {
+  const mgr = typeof navigator !== 'undefined' ? navigator.storage : undefined
+  if (!mgr?.persist) return false
+  try {
+    const granted = await mgr.persist()
+    storagePersisted.set(granted)
+    return granted
+  } catch {
+    return false
+  }
 }
 
 /**

@@ -1,6 +1,8 @@
 /**
  * 主题状态：light / dark / system 三档，生效值落到 <html> 的 .dark 类。
  * 偏好持久化在 localStorage（客户端偏好，不进应用数据存储层）。
+ * 同时把 <meta name="theme-color"> 同步为生效主题的背景色，
+ * 让浏览器标签页与已安装 PWA 的标题栏跟随主题（含系统深色模式）。
  */
 
 import { get, writable } from 'svelte/store'
@@ -12,6 +14,12 @@ export type ThemeSetting = 'light' | 'dark' | 'system'
 export type EffectiveTheme = 'light' | 'dark'
 
 const STORAGE_KEY = '30kdays-theme'
+
+/** 各生效主题对应的 theme-color（与 app.css 的 --bg 一致）。 */
+const THEME_COLORS: Record<EffectiveTheme, string> = {
+  light: '#f6f2e9',
+  dark: '#1c1a17',
+}
 
 /** 读取持久化的主题设置；非法值回退 system。 */
 function readSetting(): ThemeSetting {
@@ -38,6 +46,8 @@ export function initTheme(): void {
     const eff: EffectiveTheme = setting === 'system' ? (media.matches ? 'dark' : 'light') : setting
     effectiveTheme.set(eff)
     document.documentElement.classList.toggle('dark', eff === 'dark')
+    // 同步浏览器/PWA 窗口配色；已安装 PWA 的标题栏在下次启动时生效
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLORS[eff])
   }
 
   themeSetting.subscribe((s) => {

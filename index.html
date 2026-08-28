@@ -4,7 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#f6f2e9" />
+    <script>
+      // 防主题闪白：首次绘制前同步解析主题并预设背景色与 .dark 类。
+      // 存储键与色值与 src/stores/theme.ts、app.css --bg 保持一致（改时三处同步）。
+      ;(function () {
+        var s = localStorage.getItem('30kdays-theme')
+        var dark =
+          s === 'dark' || (s !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        var root = document.documentElement
+        root.classList.toggle('dark', dark)
+        root.style.background = dark ? '#1c1a17' : '#f6f2e9'
+        document
+          .querySelector('meta[name="theme-color"]')
+          .setAttribute('content', dark ? '#1c1a17' : '#f6f2e9')
+      })()
+    </script>
     <title>30kdays</title>
   </head>
   <body>

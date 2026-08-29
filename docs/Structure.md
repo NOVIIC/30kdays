@@ -21,9 +21,9 @@
 │   │   └── host/           # Extension Host：manifest、权限、Worker、派发点/中间件链、Host API
 │   ├── stores/             # 前端状态：配置、主题、路由、存储状态等
 │   └── ui/                 # Svelte 界面：壳、Onboarding、日历、日记、设置
-├── extensions/            # 内置扩展包（memo 骨架已就位；todo 随阶段 2），构建期静态注册
-├── src-tauri/ ⏳阶段 3    # 桌面壳：FS、同步汇合、Agent 运行时挂载、外部扩展目录
-├── crates/ ⏳阶段 3+      # 宿主侧可共享的 Rust 库（Agent 宿主接口等）
+├── extensions/            # 内置扩展包（memo 骨架已就位；todo 随阶段 3），构建期静态注册
+├── src-tauri/ ⏳阶段 2    # 桌面壳：FS、同步汇合、Agent 运行时挂载、外部扩展目录
+├── crates/ ⏳阶段 5       # 宿主侧可共享的 Rust 库（Agent 宿主接口等）
 ├── tests/                 # 单元测试（Vitest；domain / grid / storage / host）
 └── e2e/                  # 端到端测试（Playwright，核心闭环用例）
 ```

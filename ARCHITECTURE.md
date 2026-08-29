@@ -78,7 +78,7 @@
 /
   ARCHITECTURE.md
   package.json                 # pnpm；Vite 构建前端 / PWA
-  Cargo.toml                   # Rust workspace（阶段 3+）
+  Cargo.toml                   # Rust workspace（阶段 2 起）
   public/                      # 不经打包的静态资源（favicon 等）
   src/                         # 共享前端（PWA 与 Tauri webview 共用）
     core/                      # 核心层：不依赖 UI 的可复用模块
@@ -98,7 +98,7 @@
       src/                     # TS → logic.js（内置扩展逻辑默认用 TS）
     todo/
       …
-  crates/                      # 宿主侧可共享的 Rust 库（Agent 宿主接口等；阶段 3+）
+  crates/                      # 宿主侧可共享的 Rust 库（Agent 宿主接口等；阶段 5）
   tests/                       # 单元测试（domain / grid 等）
   e2e/                         # 端到端测试
 ```
@@ -123,7 +123,7 @@
 ### 5.1 运行时
 
 - **逻辑（可选）**：manifest `main` 声明，载体为 **JS 模块或 wasm**，均在 **Web Worker** 中加载，遵守同一 RPC 契约（如 Comlink）；主线程 Svelte 视图经 RPC 调用逻辑；能力经 Host API 注入。无逻辑层的纯视图扩展同样成立。内置扩展默认 TS → JS；需要 Rust 性能或与桌面侧复用代码时选 wasm。
-- **桌面可选 Native Agent**：以 **wasm 产物**分发，由 Tauri 进程内嵌的 wasm 运行时加载并管理生命周期（例如常驻 HTTP 服务）；能力（HTTP 监听、定时器、受限 FS 等）由**宿主函数**注入，不挂载原生代码。Agent 聚合结果写入存储，再由展示侧读取。运行时选型与宿主函数 ABI 在阶段 4 定稿。
+- **桌面可选 Native Agent**：以 **wasm 产物**分发，由 Tauri 进程内嵌的 wasm 运行时加载并管理生命周期（例如常驻 HTTP 服务）；能力（HTTP 监听、定时器、受限 FS 等）由**宿主函数**注入，不挂载原生代码。Agent 聚合结果写入存储，再由展示侧读取。运行时选型与宿主函数 ABI 在阶段 5 定稿。
 - **平台裁剪**：manifest 声明适用平台与贡献点；同一扩展在 PWA 与桌面可启用不同子集（例如仅桌面启用采集 Agent，两端都启用视图/格子覆盖）。
 
 ### 5.2 Manifest（首期子集，随后扩展）
@@ -150,7 +150,7 @@
 }
 ```
 
-内置扩展开发期可使用 `.svelte` 与 TS 源码并由主应用构建管线打包；字段在发布物中与外置 `dist` 对齐。**加载机制**：内置扩展在构建期经 `import.meta.glob` 静态收集（`src/core/host/registry.ts`，manifest 立即载入、视图组件懒加载）；外部扩展（阶段 4）走独立的运行时安装路径。
+内置扩展开发期可使用 `.svelte` 与 TS 源码并由主应用构建管线打包；字段在发布物中与外置 `dist` 对齐。**加载机制**：内置扩展在构建期经 `import.meta.glob` 静态收集（`src/core/host/registry.ts`，manifest 立即载入、视图组件懒加载）；外部扩展（阶段 5）走独立的运行时安装路径。
 
 ### 5.3 贡献点（按阶段启用）
 
@@ -321,15 +321,19 @@ type TodoSchedule =
 
 可安装/可离线的 PWA：Onboarding、网格、日记、OPFS 存储、主题。Extension Host 可先以最小接口就位或紧随本阶段末尾接入。
 
-### 阶段 2 — Host + 内置扩展
+### 阶段 2 — Tauri 壳 + 本地存储
+
+Tauri 2 桌面壳运行同一套 `src/`；本地数据目录版 `StorageBackend`；平台抽象与双壳构建管线打通；桌面侧自管文件夹工作流就位。**不含同步与 Native Agent**；打包分发从简，验证以单测 + 手测冒烟为主（PWA 现有测试保持全绿）。
+
+### 阶段 3 — Host + 内置扩展
 
 完善 Extension Host（Worker、manifest、`views`、派发点与中间件链、`doc.*` / `log.*`）。落地 `memo`、`todo`（含 `gridOverlays` / 编辑器贡献等 todo 所需契约）。导航与路由由核心项 + 扩展贡献合并。
 
-### 阶段 3 — Tauri + 同步
+### 阶段 4 — 同步
 
-桌面壳、本地数据目录后端、同步汇合（多副本可合并；库与协议定稿）、桌面侧自管文件夹工作流打通。
+多副本可合并的同步汇合（合并库与协议本阶段定稿，见 §7）、局域网发现与本地传输、桌面作为汇合点打通；扩展 `ext/<id>/` 数据参与同一同步层。
 
-### 阶段 4 — 外部扩展
+### 阶段 5 — 外部扩展
 
 PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面：用户扩展目录 + Native Agent（wasm，内嵌运行时加载）。以独立仓库的采集/展示扩展验证端到端（WakaTime 兼容接收 → 聚合 → 同步 → 两端热力）。**安装 UX、签名、宿主函数 ABI 等细节本阶段开始前再定。**
 

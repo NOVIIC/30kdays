@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { get } from 'svelte/store'
 
-/** 替代真实存储 Worker 的 readConfig 行为（由 vi.mock 注入）。 */
-const readConfig = vi.hoisted(() => vi.fn())
+/** 替代真实存储 Worker 的读写行为（由 vi.mock 注入）。 */
+const mocks = vi.hoisted(() => ({
+  readConfig: vi.fn(),
+  writeConfig: vi.fn(),
+  writeIndex: vi.fn(),
+}))
+const { readConfig, writeConfig, writeIndex } = mocks
 
 vi.mock('../../src/core/storage', () => ({
-  createStorageBackend: () => ({ readConfig }),
+  createStorageBackend: () => mocks,
 }))
 
 describe('boot', () => {
@@ -37,6 +42,31 @@ describe('boot', () => {
     readConfig.mockResolvedValue(null)
     await boot()
     expect(get(bootState)).toBe('onboarding')
+  })
+})
+
+describe('completeOnboarding', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    writeConfig.mockReset()
+    writeIndex.mockReset()
+  })
+
+  it('写入配置与空索引后进入 ready，内存日索引同步为全空（点格立即可用）', async () => {
+    const { createLifeConfig, totalDays } = await import('../../src/core/domain')
+    const { completeOnboarding, bootState } = await import('../../src/stores/storage')
+    const { dayIndex } = await import('../../src/stores/day-index')
+    const { config } = await import('../../src/stores/config')
+    const cfg = createLifeConfig('2000-01-01', 80)
+
+    await completeOnboarding(cfg)
+
+    expect(writeConfig).toHaveBeenCalledWith(cfg)
+    expect(writeIndex).toHaveBeenCalledOnce()
+    expect(get(bootState)).toBe('ready')
+    expect(get(config)).toEqual(cfg)
+    expect(get(dayIndex).length).toBe(totalDays(cfg))
+    expect(get(dayIndex).every((f) => f === 0)).toBe(true)
   })
 })
 

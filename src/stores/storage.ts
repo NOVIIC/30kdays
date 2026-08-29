@@ -9,7 +9,7 @@ import type { LifeConfig } from '../core/domain'
 import { createDayIndex, serializeDayIndex, totalDays } from '../core/domain'
 import { createStorageBackend, type StorageBackend } from '../core/storage'
 import { config } from './config'
-import { loadDayIndex } from './day-index'
+import { dayIndex, loadDayIndex } from './day-index'
 
 /** 启动状态：loading 读取中 / onboarding 未配置 / ready 就绪 / error 存储不可用。 */
 export type BootState = 'loading' | 'onboarding' | 'ready' | 'error'
@@ -53,11 +53,13 @@ export async function boot(): Promise<void> {
   }
 }
 
-/** 完成 Onboarding：写入 config.json 与空 index.bin 后进入日历。 */
+/** 完成 Onboarding：写入 config.json 与空 index.bin，同步内存态后进入日历。 */
 export async function completeOnboarding(cfg: LifeConfig): Promise<void> {
   const b = getBackend()
+  const index = createDayIndex(totalDays(cfg))
   await b.writeConfig(cfg)
-  await b.writeIndex(serializeDayIndex(createDayIndex(totalDays(cfg))))
+  await b.writeIndex(serializeDayIndex(index))
+  dayIndex.set(index)
   config.set(cfg)
   bootState.set('ready')
   void ensurePersistence()

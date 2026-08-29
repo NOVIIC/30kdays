@@ -10,7 +10,7 @@
 | Worker RPC | Comlink（主线程 ↔ 存储/扩展 Worker）                     |
 | 桌面壳     | Tauri 2（⏳ 阶段 3 引入）                                |
 | 单元测试   | Vitest                                                   |
-| 端到端测试 | Playwright（⏳ 阶段 1 引入，Chromium 验证 PWA 关键路径） |
+| 端到端测试 | Playwright（Chromium，验证 PWA 关键路径）                |
 | 代码规范   | ESLint + Prettier                                        |
 | 包管理     | pnpm                                                     |
 | Rust       | stable 工具链（⏳ 阶段 3 起；含 wasm 目标，供 Agent 等） |
@@ -24,17 +24,18 @@
 
 ## 常用命令
 
-| 命令                | 用途                        |
-| ------------------- | --------------------------- |
-| `pnpm dev`          | 启动开发服务器              |
-| `pnpm build`        | 构建 PWA 到 `dist/`         |
-| `pnpm preview`      | 预览构建产物                |
-| `pnpm check`        | svelte-check + tsc 类型检查 |
-| `pnpm test`         | Vitest 单元测试（`tests/`） |
-| `pnpm test:watch`   | Vitest watch 模式           |
-| `pnpm lint`         | ESLint                      |
-| `pnpm format`       | Prettier 格式化             |
-| `pnpm format:check` | Prettier 检查               |
+| 命令                | 用途                                                  |
+| ------------------- | ----------------------------------------------------- |
+| `pnpm dev`          | 启动开发服务器                                        |
+| `pnpm build`        | 构建 PWA 到 `dist/`                                   |
+| `pnpm preview`      | 预览构建产物                                          |
+| `pnpm check`        | svelte-check + tsc 类型检查                           |
+| `pnpm test`         | Vitest 单元测试（`tests/`）                           |
+| `pnpm test:e2e`     | Playwright e2e（`e2e/`；自动构建并以 preview 起服务） |
+| `pnpm test:watch`   | Vitest watch 模式                                     |
+| `pnpm lint`         | ESLint                                                |
+| `pnpm format`       | Prettier 格式化                                       |
+| `pnpm format:check` | Prettier 检查                                         |
 
 ## 测试约定
 

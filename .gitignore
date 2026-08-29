@@ -5,6 +5,10 @@ dist/
 dist-ssr/
 target/
 
+# Playwright
+playwright-report/
+test-results/
+
 # Logs
 logs
 *.log

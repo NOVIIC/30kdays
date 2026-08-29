@@ -25,5 +25,5 @@
 ├── src-tauri/ ⏳阶段 3    # 桌面壳：FS、同步汇合、Agent 运行时挂载、外部扩展目录
 ├── crates/ ⏳阶段 3+      # 宿主侧可共享的 Rust 库（Agent 宿主接口等）
 ├── tests/                 # 单元测试（Vitest；domain / grid / storage / host）
-└── e2e/ ⏳阶段 1          # 端到端测试（Playwright）
+└── e2e/                  # 端到端测试（Playwright，核心闭环用例）
 ```

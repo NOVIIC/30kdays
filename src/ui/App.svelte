@@ -18,6 +18,7 @@
   import Onboarding from './Onboarding.svelte'
   import SettingsView from './SettingsView.svelte'
   import SideNav from './SideNav.svelte'
+  import ViewError from './ViewError.svelte'
 
   const gridColors = $derived($effectiveTheme === 'dark' ? GRID_COLORS_DARK : GRID_COLORS_LIGHT)
   const today = $derived($config ? todayIndex($config) : -1)
@@ -50,42 +51,53 @@
       </button>
     </div>
   {:else if $bootState === 'onboarding'}
-    <Onboarding />
+    <!-- 各视图独立错误边界：一处崩溃不影响其余，重试仅重建失败视图 -->
+    <svelte:boundary>
+      <Onboarding />
+      {#snippet failed(_error, reset)}
+        <ViewError message="初始化界面加载失败。" onreset={reset} />
+      {/snippet}
+    </svelte:boundary>
   {:else if $config}
     <div class="flex h-full">
       <SideNav />
       <div class="relative min-w-0 flex-1">
         {#if $view === 'settings'}
-          <SettingsView />
+          <svelte:boundary>
+            <SettingsView />
+            {#snippet failed(_error, reset)}
+              <ViewError message="设置页加载失败。" onreset={reset} />
+            {/snippet}
+          </svelte:boundary>
         {:else if extView !== undefined}
           <!-- 扩展视图：按 id 重建，错误边界兜底 -->
           {#key extView.id}
             <svelte:boundary>
               <ExtensionView view={extView} />
               {#snippet failed(_error, reset)}
-                <div
-                  class="flex h-full flex-col items-center justify-center gap-4 px-6 text-center"
-                >
-                  <p class="text-sm">扩展视图「{extView.label}」加载失败。</p>
-                  <button
-                    class="rounded-xl bg-accent px-6 py-2.5 text-sm font-medium text-accent-contrast transition-colors hover:bg-accent-strong"
-                    onclick={reset}
-                  >
-                    重试
-                  </button>
-                </div>
+                <ViewError message="扩展视图「{extView.label}」加载失败。" onreset={reset} />
               {/snippet}
             </svelte:boundary>
           {/key}
         {:else}
           <!-- 配置变化（如寿命调整）时重建日历 -->
           {#key $config}
-            <CalendarView config={$config} dayIndex={$dayIndex} {today} colors={gridColors} />
+            <svelte:boundary>
+              <CalendarView config={$config} dayIndex={$dayIndex} {today} colors={gridColors} />
+              {#snippet failed(_error, reset)}
+                <ViewError message="日历加载失败。" onreset={reset} />
+              {/snippet}
+            </svelte:boundary>
           {/key}
         {/if}
       </div>
     </div>
-    <!-- 日记编辑器：深链 ?d=<index> 驱动，与当前视图无关 -->
-    <DayEditor />
+    <!-- 日记编辑器：深链 ?d=<index> 驱动，与当前视图无关；reset 后依深链重新打开 -->
+    <svelte:boundary>
+      <DayEditor />
+      {#snippet failed(_error, reset)}
+        <ViewError message="日记编辑器出错了。" onreset={reset} />
+      {/snippet}
+    </svelte:boundary>
   {/if}
 </main>

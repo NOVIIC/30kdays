@@ -78,7 +78,7 @@
 /
   ARCHITECTURE.md
   package.json                 # pnpm；Vite 构建前端 / PWA
-  Cargo.toml                   # Rust workspace（阶段 2 起）
+  Cargo.toml                   # Rust workspace（阶段 5 起；src-tauri 此前为独立 crate）
   public/                      # 不经打包的静态资源（favicon 等）
   src/                         # 共享前端（PWA 与 Tauri webview 共用）
     core/                      # 核心层：不依赖 UI 的可复用模块
@@ -219,7 +219,7 @@ ext/<ext-id>/…        # 每个扩展一个独立文件夹，内部结构由扩
 | 壳    | 后端                                                                                                         |
 | ----- | ------------------------------------------------------------------------------------------------------------ |
 | PWA   | OPFS（Worker 内 I/O，主线程经 Comlink RPC 调用；index.bin 整文件读写，约 30KB 级，暂不用同步 access handle） |
-| Tauri | 本地数据目录上的原生文件系统                                                                                 |
+| Tauri | 本地数据目录上的原生文件系统（自定义 Rust 命令，见 `src-tauri/src/storage.rs`；前端封装 `src/core/storage/tauri-store.ts`） |
 
 媒体：Worker/原生侧缩放压缩为 WebP（长边上限约 2048），缩略图约 256。多标签写用 Web Locks 串行、变更经 BroadcastChannel 通知同源其它页（PWA）为规划项，后期落地。
 

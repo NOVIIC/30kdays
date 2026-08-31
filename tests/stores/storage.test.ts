@@ -11,6 +11,7 @@ const { readConfig, writeConfig, writeIndex } = mocks
 
 vi.mock('../../src/core/storage', () => ({
   createStorageBackend: () => mocks,
+  isTauri: () => false,
 }))
 
 describe('boot', () => {

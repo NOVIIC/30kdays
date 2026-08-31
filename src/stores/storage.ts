@@ -7,7 +7,7 @@
 import { writable } from 'svelte/store'
 import type { LifeConfig } from '../core/domain'
 import { createDayIndex, serializeDayIndex, totalDays } from '../core/domain'
-import { createStorageBackend, type StorageBackend } from '../core/storage'
+import { createStorageBackend, isTauri, type StorageBackend } from '../core/storage'
 import { config } from './config'
 import { dayIndex, loadDayIndex } from './day-index'
 
@@ -68,9 +68,11 @@ export async function completeOnboarding(cfg: LifeConfig): Promise<void> {
 /**
  * 启动时自动确保持久化存储：已持久化则仅记录状态，未持久化则自动申请一次。
  * API 不可用或调用失败时保持 null（设置页据此隐藏申请入口）。
+ * 桌面壳（Tauri）数据在本地目录，无浏览器驱逐概念，直接跳过（保持 null 隐藏入口）。
  * 失败不影响启动，故内部吞错并以 void 调用。
  */
 export async function ensurePersistence(): Promise<void> {
+  if (isTauri()) return
   const mgr = typeof navigator !== 'undefined' ? navigator.storage : undefined
   if (!mgr?.persisted || !mgr?.persist) return
   try {

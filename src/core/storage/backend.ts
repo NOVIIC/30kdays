@@ -1,8 +1,8 @@
 /**
  * StorageBackend：存储后端统一接口。
  * 上层与扩展只依赖本接口；PWA 侧由 OPFS Worker 实现（见 index.ts），
- * 桌面壳（Tauri）后期提供本地目录实现。所有方法均为异步，
- * 以便主线程经 Comlink RPC 调用 Worker 内的真实实现。
+ * 桌面壳（Tauri）经自定义 Rust 命令读写本地数据目录（见 tauri-store.ts）。
+ * 所有方法均为异步，以便主线程经 Comlink RPC 调用 Worker 内的真实实现。
  */
 
 import type { LifeConfig } from '../domain/life'

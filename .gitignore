@@ -4,6 +4,7 @@ crt.md
 dist/
 dist-ssr/
 target/
+src-tauri/gen/
 
 # Playwright
 playwright-report/

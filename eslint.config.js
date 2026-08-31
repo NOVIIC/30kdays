@@ -6,7 +6,15 @@ import svelteConfig from './svelte.config.js'
 
 export default tseslint.config(
   {
-    ignores: ['dist/', 'node_modules/', '.worktree/', 'playwright-report/', 'test-results/'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      '.worktree/',
+      'playwright-report/',
+      'test-results/',
+      'src-tauri/target/',
+      'src-tauri/gen/',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

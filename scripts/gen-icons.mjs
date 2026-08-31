@@ -1,10 +1,11 @@
 /**
- * PWA 图标生成：从 public/favicon.svg 渲染安装清单所需的 PNG。
- * 产物写入 public/icons/：
- *   pwa-192.png      192×192  安装清单小图标
- *   pwa-512.png      512×512  安装清单大图标 / 启动屏
- *   maskable-512.png 512×512  Android 自适应图标（内容缩进 80% 安全区，底色铺满）
- * 用法：pnpm icons（更换 favicon.svg 后重跑）。
+ * 图标生成：从 public/favicon.svg 渲染各壳所需的 PNG。
+ * 产物：
+ *   public/icons/pwa-192.png      192×192   安装清单小图标
+ *   public/icons/pwa-512.png      512×512   安装清单大图标 / 启动屏
+ *   public/icons/maskable-512.png 512×512   Android 自适应图标（内容缩进 80% 安全区，底色铺满）
+ *   src-tauri/app-icon.png        1024×1024 Tauri 源图标（再经 `pnpm tauri icon` 生成各平台图标）
+ * 用法：pnpm icons（更换 favicon.svg 后重跑，并执行 pnpm tauri icon src-tauri/app-icon.png 刷新桌面图标）。
  */
 
 import { mkdir } from 'node:fs/promises'
@@ -45,3 +46,8 @@ await mkdir(OUT_DIR, { recursive: true })
 await icon('pwa-192.png', 192)
 await icon('pwa-512.png', 512)
 await maskable('maskable-512.png', 512)
+
+// Tauri 源图标：1024×1024，经 `pnpm tauri icon` 派生 .ico/.icns 等各平台产物
+const TAURI_SRC = fileURLToPath(new URL('../src-tauri/app-icon.png', import.meta.url))
+await raster(1024).png().toFile(TAURI_SRC)
+console.log('✓ src-tauri/app-icon.png (1024×1024, Tauri 源图标)')

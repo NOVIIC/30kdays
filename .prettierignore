@@ -2,3 +2,5 @@ dist
 node_modules
 .worktree
 pnpm-lock.yaml
+target
+src-tauri/gen

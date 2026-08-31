@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布 Windows 安装包
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # 一步装好 pnpm（版本取自 package.json 的 packageManager 字段）和 Node，并自动 pnpm install
+      - uses: pnpm/setup@v2
+        with:
+          runtime: node@24
+          cache: true
+          require-lockfile: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --bundles nsis
+          releaseName: 30kdays v__VERSION__
+          # 带 -rc / -alpha / -beta 等后缀的 tag 标记为 pre-release
+          prerelease: ${{ contains(github.ref_name, '-') }}

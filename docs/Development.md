@@ -38,6 +38,7 @@
 | `pnpm format:check` | Prettier 检查                                           |
 | `pnpm tauri dev`    | 桌面壳开发（编译 Rust 并开窗，前端走 Vite 热更新）      |
 | `pnpm tauri build`  | 桌面壳打包（产物在 `src-tauri/target/release/bundle/`） |
+| `pnpm sync-version` | 把 package.json 版本号同步进 `src-tauri/Cargo.toml`     |
 
 ## 测试约定
 
@@ -49,4 +50,4 @@
 
 - CI（`.github/workflows/ci.yml`）：push / PR 到 `main` 触发，两个并行 job——前端（lint、format:check、check、vitest、build）与 Rust（cargo fmt / clippy / check / test）。e2e 不进 CI，本地手动跑。
 - 发布（`.github/workflows/release.yml`）：推送 `v*` tag 触发，构建 Windows NSIS 安装包并直接发布 GitHub Release；tag 带 `-alpha` / `-beta` / `-rc` 等后缀时自动标记为 pre-release。
-- 发版前把三处版本号同步改为 tag 对应版本：`package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`。
+- 发版前版本号以 `package.json` 为单一来源：改为 tag 对应版本后跑 `pnpm sync-version`（写入 `src-tauri/Cargo.toml`；`tauri.conf.json` 不写 version，缺省回退 Cargo.toml；`Cargo.lock` 由 cargo 构建时自动跟进）。

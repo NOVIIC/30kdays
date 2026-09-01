@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "icons": "node scripts/gen-icons.mjs",
+    "sync-version": "node scripts/sync-version.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "test:e2e": "playwright test",

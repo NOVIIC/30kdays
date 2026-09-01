@@ -1,7 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "30kdays",
-  "version": "0.0.0",
   "identifier": "cc.novic.30kdays",
   "build": {
     "frontendDist": "../dist",

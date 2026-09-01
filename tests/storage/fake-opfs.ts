@@ -24,6 +24,8 @@ async function chunkToBytes(chunk: string | Blob | Uint8Array): Promise<Uint8Arr
 
 /** 内存假 FileSystemFileHandle：getFile / createWritable。 */
 class FakeFileHandle {
+  readonly kind = 'file'
+
   constructor(private readonly node: FakeFileNode) {}
 
   /** 读取文件内容，包装为 File（与真实 OPFS 返回类型一致）。 */
@@ -57,6 +59,8 @@ class FakeFileHandle {
 
 /** 内存假 FileSystemDirectoryHandle：getDirectoryHandle / getFileHandle / removeEntry。 */
 class FakeDirectoryHandle {
+  readonly kind = 'directory'
+
   constructor(private readonly node: FakeDirNode) {}
 
   /** 取得子目录句柄；create 为 true 时缺失即创建，否则抛 NotFoundError。 */
@@ -92,9 +96,12 @@ class FakeDirectoryHandle {
   }
 
   /** 异步迭代目录条目，与真实 FileSystemDirectoryHandle.entries() 一致。 */
-  async *entries(): AsyncIterableIterator<[string, { kind: 'directory' | 'file' }]> {
+  async *entries(): AsyncIterableIterator<[string, FakeDirectoryHandle | FakeFileHandle]> {
     for (const [name, child] of this.node.children) {
-      yield [name, { kind: child.kind === 'dir' ? 'directory' : 'file' }]
+      yield [
+        name,
+        child.kind === 'dir' ? new FakeDirectoryHandle(child) : new FakeFileHandle(child),
+      ]
     }
   }
 }

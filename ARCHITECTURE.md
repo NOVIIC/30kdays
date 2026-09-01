@@ -25,7 +25,7 @@
 - 日内容索引（`index.bin` 等）与按天日记（正文 + 媒体）
 - Canvas 网格渲染与输入（布局、相机、总览/高清、命中检测）
 - 存储抽象与各壳后端
-- 应用壳：Onboarding、侧栏/底部导航骨架、日历视图、日记编辑器、设置（主题、寿命、存储占用、同步入口等）
+- 应用壳：Onboarding、侧栏/底部导航骨架、日历视图、日记编辑器、设置（主题、寿命展示、分模块存储占用、版本号、同步入口等）
 - **Extension Host**：扫描/加载扩展、权限、Worker、贡献点注册、派发点与中间件链、Host API
 
 ### 2.2 内置扩展
@@ -196,7 +196,7 @@
 
 ### 6.1 接口
 
-统一 `StorageBackend`：配置、日索引、按天文档与媒体、通用文件读写（`readFile`/`writeFile`/`listDir`/`removeEntry`，段数组路径）、用量估计等。PWA 与 Tauri 提供不同实现，上层与扩展只依赖接口。
+统一 `StorageBackend`：配置、日索引、按天文档与媒体、通用文件读写（`readFile`/`writeFile`/`listDir`/`removeEntry`，段数组路径）、用量估计（含按 days/media/ext/索引与配置的分模块明细）等。PWA 与 Tauri 提供不同实现，上层与扩展只依赖接口。
 
 ### 6.2 文件布局（逻辑树，两壳一致）
 

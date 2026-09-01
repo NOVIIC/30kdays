@@ -98,6 +98,15 @@ type DirWithEntries = {
   entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]>
 }
 
+/** 递归累加目录下文件大小（字节）。 */
+async function dirSize(dir: FileSystemDirectoryHandle): Promise<number> {
+  let total = 0
+  for await (const [, handle] of (dir as unknown as DirWithEntries).entries()) {
+    total += handle.kind === 'directory' ? await dirSize(handle) : (await handle.getFile()).size
+  }
+  return total
+}
+
 /**
  * 基于 OPFS 根目录句柄创建 StorageBackend。
  * 每个方法按需解析子目录（days/、media/<n>/、ext/<id>/…），写入时自动创建缺失目录。
@@ -196,8 +205,22 @@ export function createOpfsStore(
     },
 
     async estimateUsage(): Promise<StorageUsage> {
+      // 遍历应用根目录按顶层目录分模块求和（usage 为本应用实际占用，而非浏览器整源估计）；
+      // 配额无 API 可分应用查询，仍取 navigator.storage.estimate() 的整源估计值。
+      const root = await rootPromise
+      const breakdown = { days: 0, media: 0, ext: 0, system: 0 }
+      for await (const [name, handle] of (root as unknown as DirWithEntries).entries()) {
+        const size =
+          handle.kind === 'directory' ? await dirSize(handle) : (await handle.getFile()).size
+        if (name === 'days' || name === 'media' || name === 'ext') breakdown[name] += size
+        else breakdown.system += size
+      }
       const est = await navigator.storage.estimate()
-      return { usage: est.usage ?? 0, quota: est.quota ?? 0 }
+      return {
+        usage: breakdown.days + breakdown.media + breakdown.ext + breakdown.system,
+        quota: est.quota ?? 0,
+        breakdown,
+      }
     },
   }
 }

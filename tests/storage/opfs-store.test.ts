@@ -128,17 +128,39 @@ describe('文件 API（readFile / writeFile / listDir / removeEntry）', () => {
 })
 
 describe('estimateUsage', () => {
-  it('透传 navigator.storage.estimate 并兜底缺省字段', async () => {
+  it('按顶层目录分模块求和，quota 取浏览器估计', async () => {
     vi.stubGlobal('navigator', {
-      storage: { estimate: async () => ({ usage: 100, quota: 2000 }) },
+      storage: { estimate: async () => ({ usage: 999, quota: 2000 }) },
     })
     const store = createOpfsStore(createFakeOpfsRoot())
-    expect(await store.estimateUsage()).toEqual({ usage: 100, quota: 2000 })
+    const enc = new TextEncoder()
+    await store.writeDayDoc(0, createEmptyDayDoc())
+    await store.writeFile(['ext', 'memo', 'sub', 'a.json'], enc.encode('12'))
+    await store.writeIndex(new Uint8Array([1, 2, 3]))
+    await store.writeConfig(createLifeConfig('2000-01-01', 80))
+
+    const usage = await store.estimateUsage()
+    const daysSize = enc.encode(JSON.stringify(createEmptyDayDoc())).length
+    expect(usage.breakdown.days).toBe(daysSize)
+    expect(usage.breakdown.media).toBe(0)
+    expect(usage.breakdown.ext).toBe(2)
+    expect(usage.breakdown.system).toBe(
+      3 + enc.encode(JSON.stringify(createLifeConfig('2000-01-01', 80))).length,
+    )
+    expect(usage.usage).toBe(
+      usage.breakdown.days + usage.breakdown.media + usage.breakdown.ext + usage.breakdown.system,
+    )
+    // quota 仍来自浏览器估计；usage 不再采用其整源估计值
+    expect(usage.quota).toBe(2000)
   })
 
-  it('字段缺失时按 0 处理', async () => {
+  it('空目录时各项为 0，quota 缺省兜底为 0', async () => {
     vi.stubGlobal('navigator', { storage: { estimate: async () => ({}) } })
     const store = createOpfsStore(createFakeOpfsRoot())
-    expect(await store.estimateUsage()).toEqual({ usage: 0, quota: 0 })
+    expect(await store.estimateUsage()).toEqual({
+      usage: 0,
+      quota: 0,
+      breakdown: { days: 0, media: 0, ext: 0, system: 0 },
+    })
   })
 })

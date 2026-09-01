@@ -8,12 +8,26 @@
 import type { LifeConfig } from '../domain/life'
 import type { DayDoc } from '../domain/day-doc'
 
-/** 存储用量估计（字节），取自 navigator.storage.estimate()。 */
+/** 分模块存储占用（字节），按顶层目录划分，各项之和即 usage。 */
+export type StorageBreakdown = {
+  /** 日记文档（days/）。 */
+  days: number
+  /** 媒体附件（media/）。 */
+  media: number
+  /** 扩展数据（ext/）。 */
+  ext: number
+  /** 索引与配置（根目录散置文件：index.bin、config.json 等）。 */
+  system: number
+}
+
+/** 存储用量估计（字节）。usage 为本应用数据的实际占用（两侧均自行遍历求和），quota 为可增长上限估计。 */
 export type StorageUsage = {
-  /** 已用字节数（整个源，非本应用独占计量）。 */
+  /** 已用字节数（本应用数据目录的实际占用）。 */
   usage: number
-  /** 配额字节数。 */
+  /** 配额字节数（浏览器估计值或磁盘可用空间近似）。 */
   quota: number
+  /** 分模块占用明细。 */
+  breakdown: StorageBreakdown
 }
 
 /** 媒体读取的档位：完整图或缩略图。 */

@@ -8,7 +8,14 @@ import * as Comlink from 'comlink'
 import type { StorageBackend } from './backend'
 import { createTauriStore } from './tauri-store'
 
-export type { DirListing, MediaKind, StorageBackend, StoragePath, StorageUsage } from './backend'
+export type {
+  DirListing,
+  MediaKind,
+  StorageBackend,
+  StorageBreakdown,
+  StoragePath,
+  StorageUsage,
+} from './backend'
 
 /** 是否运行在 Tauri 桌面壳 webview 内（Tauri 注入 __TAURI_INTERNALS__ 全局）。 */
 export function isTauri(): boolean {

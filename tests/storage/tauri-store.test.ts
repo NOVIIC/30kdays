@@ -120,7 +120,15 @@ describe('其余方法透传', () => {
     expect(invokeMock).toHaveBeenCalledWith('storage_remove_entry', { path: ['ext', 'memo'] })
     invokeMock.mockResolvedValue({ dirs: ['sub'], files: ['a.json'] })
     expect(await store.listDir(['ext'])).toEqual({ dirs: ['sub'], files: ['a.json'] })
-    invokeMock.mockResolvedValue({ usage: 100, quota: 2000 })
-    expect(await store.estimateUsage()).toEqual({ usage: 100, quota: 2000 })
+    invokeMock.mockResolvedValue({
+      usage: 100,
+      quota: 2000,
+      breakdown: { days: 60, media: 30, ext: 8, system: 2 },
+    })
+    expect(await store.estimateUsage()).toEqual({
+      usage: 100,
+      quota: 2000,
+      breakdown: { days: 60, media: 30, ext: 8, system: 2 },
+    })
   })
 })

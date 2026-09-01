@@ -15,7 +15,9 @@
      */
     "allowJs": true,
     "checkJs": true,
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    // 允许设置页从 package.json 导入版本号（JSON 具名导入只打包该字段）
+    "resolveJsonModule": true
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "extensions/**/*.svelte"]
 }

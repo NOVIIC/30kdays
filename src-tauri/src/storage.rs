@@ -30,11 +30,21 @@ pub struct DirListing {
     files: Vec<String>,
 }
 
+/// 分模块存储占用（对应前端 `StorageBreakdown`），按顶层目录划分，各项之和即 usage。
+#[derive(Serialize)]
+pub struct StorageBreakdown {
+    days: u64,
+    media: u64,
+    ext: u64,
+    system: u64,
+}
+
 /// 存储用量估计（对应前端 `StorageUsage`）。
 #[derive(Serialize)]
 pub struct StorageUsage {
     usage: u64,
     quota: u64,
+    breakdown: StorageBreakdown,
 }
 
 /// 数据根目录：应用数据目录，不存在则创建。
@@ -275,16 +285,40 @@ fn dir_size(path: &Path) -> u64 {
         .sum()
 }
 
-/// 估计存储用量：usage 为数据目录文件总大小，quota 为 usage + 所在盘可用空间（近似可增长上限）。
+/// 估计存储用量：遍历数据根目录按顶层目录分模块求和（usage 为各项之和）；
+/// quota 为 usage + 所在盘可用空间（近似可增长上限）。
 /// 目录遍历在文件多（数万篇日记）时偏慢，故声明为 async 放到运行时线程执行，避免阻塞事件循环。
 #[tauri::command]
 pub async fn storage_estimate_usage(app: AppHandle) -> Result<StorageUsage, String> {
     let root = data_root(&app)?;
-    let usage = dir_size(&root);
+    let mut breakdown = StorageBreakdown {
+        days: 0,
+        media: 0,
+        ext: 0,
+        system: 0,
+    };
+    if let Ok(entries) = fs::read_dir(&root) {
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            let size = if path.is_dir() {
+                dir_size(&path)
+            } else {
+                entry.metadata().map(|m| m.len()).unwrap_or(0)
+            };
+            match entry.file_name().to_str() {
+                Some("days") => breakdown.days += size,
+                Some("media") => breakdown.media += size,
+                Some("ext") => breakdown.ext += size,
+                _ => breakdown.system += size,
+            }
+        }
+    }
+    let usage = breakdown.days + breakdown.media + breakdown.ext + breakdown.system;
     let available = fs4::available_space(&root).unwrap_or(0);
     Ok(StorageUsage {
         usage,
         quota: usage + available,
+        breakdown,
     })
 }
 

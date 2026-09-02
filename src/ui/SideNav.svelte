@@ -6,12 +6,15 @@
   import { extensionViews } from '../stores/host'
   import { navigate, view } from '../stores/router'
 
-  /** 导航项：核心项在前，扩展贡献按注册顺序在后。 */
+  /**
+   * 导航项：核心项在前，扩展贡献按注册顺序在后。
+   * 设置项单独维护：桌面端沉在侧栏底部，移动端拼在标签栏末尾。
+   */
   const items = [
     { id: 'calendar', label: '日历', icon: 'grid' },
     ...extensionViews.map((v) => ({ id: v.id, label: v.label, icon: v.icon })),
-    { id: 'settings', label: '设置', icon: 'gear' },
   ]
+  const settingsItem = { id: 'settings', label: '设置', icon: 'gear' }
 </script>
 
 {#snippet navIcon(icon: string)}
@@ -90,13 +93,24 @@
       </button>
     {/each}
   </div>
+  <button
+    onclick={() => navigate(settingsItem.id)}
+    aria-current={$view === settingsItem.id ? 'page' : undefined}
+    class="mt-auto flex w-16 flex-col items-center gap-1 rounded-xl py-2.5 text-[11px] transition-colors
+      {$view === settingsItem.id
+      ? 'bg-accent-soft text-accent'
+      : 'text-soft hover:bg-sunken hover:text-ink'}"
+  >
+    {@render navIcon(settingsItem.icon)}
+    {settingsItem.label}
+  </button>
 </nav>
 
 <!-- 移动端：底部标签栏 -->
 <nav
   class="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-line bg-raised/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
 >
-  {#each items as item (item.id)}
+  {#each [...items, settingsItem] as item (item.id)}
     <button
       onclick={() => navigate(item.id)}
       aria-current={$view === item.id ? 'page' : undefined}

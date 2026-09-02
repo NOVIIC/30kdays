@@ -37,6 +37,8 @@
   let usageError = $state(false)
   /** 持久化申请中标记（防重复点击）。 */
   let requesting = $state(false)
+  /** 手动申请被浏览器拒绝标记（展示提示文案；授权后随 storagePersisted 变为无关状态）。 */
+  let requestDenied = $state(false)
 
   /** 展示用配额：浏览器估计值按 1 GiB 封顶。 */
   const displayQuota = $derived(Math.min(usage?.quota ?? DISPLAY_QUOTA_CAP, DISPLAY_QUOTA_CAP))
@@ -70,12 +72,12 @@
     }
   }
 
-  /** 手动申请持久化存储，结果由 storagePersisted 反映到界面。 */
+  /** 手动申请持久化存储：授权结果由 storagePersisted 反映到界面，拒绝时展示提示文案。 */
   async function applyPersistence() {
     if (requesting) return
     requesting = true
     try {
-      await requestPersistence()
+      requestDenied = !(await requestPersistence())
     } finally {
       requesting = false
     }
@@ -194,14 +196,21 @@
             {#if $storagePersisted}
               <span class="text-sm text-soft">已开启，浏览器不会轻易清除本站数据</span>
             {:else}
-              <button
-                onclick={() => void applyPersistence()}
-                disabled={requesting}
-                class="rounded-lg border border-line px-3 py-1.5 text-xs text-soft transition-colors
-                  hover:text-ink disabled:opacity-50"
-              >
-                {requesting ? '申请中…' : '申请持久化'}
-              </button>
+              <div class="flex flex-col items-end gap-1">
+                <button
+                  onclick={() => void applyPersistence()}
+                  disabled={requesting}
+                  class="rounded-lg border border-line px-3 py-1.5 text-xs text-soft transition-colors
+                    hover:text-ink disabled:opacity-50"
+                >
+                  {requesting ? '申请中…' : '申请持久化'}
+                </button>
+                {#if requestDenied}
+                  <p class="max-w-52 text-right text-xs text-faint">
+                    浏览器拒绝了申请。多访问几次、或将本站安装为应用后可提高通过率。
+                  </p>
+                {/if}
+              </div>
             {/if}
           </div>
         {/if}

@@ -1,7 +1,7 @@
 {
   "name": "30kdays",
   "private": true,
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "packageManager": "pnpm@11.9.0",
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "icons": "node scripts/gen-icons.mjs",
-    "sync-version": "node scripts/sync-version.mjs",
+    "sync-version": "node scripts/sync-version.mjs && cd src-tauri/ && cargo check && cd ../",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "test:e2e": "playwright test",

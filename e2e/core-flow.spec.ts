@@ -8,20 +8,20 @@ import { expect, test, type Page } from '@playwright/test'
 /** 完成 Onboarding（默认生日 2000-01-01、寿命 80），进入日历。 */
 async function finishOnboarding(page: Page) {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: '人生日历' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '三万天' })).toBeVisible()
   await page.getByRole('button', { name: '开始这一生' }).click()
   await expect(page.locator('canvas')).toBeVisible()
 }
 
 test('首次访问进 Onboarding，提交后进入日历', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: '人生日历' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '三万天' })).toBeVisible()
   await expect(page.locator('input[type="date"]')).toHaveValue('2000-01-01')
 
   await page.getByRole('button', { name: '开始这一生' }).click()
   await expect(page.locator('canvas')).toBeVisible()
   // 日历视图不再显示 Onboarding 表单
-  await expect(page.getByRole('heading', { name: '人生日历' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: '三万天' })).toBeHidden()
 })
 
 test('Onboarding 完成后刷新不再回到 Onboarding', async ({ page }) => {

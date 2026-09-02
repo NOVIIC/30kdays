@@ -40,8 +40,8 @@
         />
       </svg>
     </div>
-    <h1 class="text-2xl font-light tracking-wide">人生日历</h1>
-    <p class="mt-2 text-sm text-soft">一生大约三万天，把每一天都铺在你眼前</p>
+    <h1 class="text-2xl font-light tracking-wide">三万天</h1>
+    <p class="mt-2 text-sm text-soft">每一天都铺在你眼前</p>
   </div>
 
   <div class="flex w-full max-w-xs flex-col gap-6">

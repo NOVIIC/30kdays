@@ -33,6 +33,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: --bundles nsis
+          tagName: v__VERSION__
           releaseName: 30kdays v__VERSION__
           # 带 -rc / -alpha / -beta 等后缀的 tag 标记为 pre-release
           prerelease: ${{ contains(github.ref_name, '-') }}

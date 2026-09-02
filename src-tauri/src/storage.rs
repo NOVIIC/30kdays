@@ -360,7 +360,8 @@ mod tests {
     /// dir_size 递归累加文件大小，不存在的目录计 0。
     #[test]
     fn dir_size_sums_recursively() {
-        let dir = std::env::temp_dir().join(format!("30kdays-test-dir-size-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("30kdays-test-dir-size-{}", std::process::id()));
         let sub = dir.join("sub");
         fs::create_dir_all(&sub).unwrap();
         fs::write(dir.join("a.bin"), [0u8; 3]).unwrap();
@@ -373,7 +374,8 @@ mod tests {
     /// 原子写落盘内容正确，且临时文件不残留。
     #[test]
     fn write_atomic_leaves_no_tmp() {
-        let dir = std::env::temp_dir().join(format!("30kdays-test-write-atomic-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("30kdays-test-write-atomic-{}", std::process::id()));
         let target = dir.join("nested").join("config.json");
         write_atomic(&target, b"{}").unwrap();
         assert_eq!(fs::read(&target).unwrap(), b"{}");

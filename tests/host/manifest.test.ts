@@ -65,4 +65,55 @@ describe('parseManifest', () => {
     raw.contributes.views[0].component = 'views/sub/Ok.svelte'
     expect(() => parseManifest(raw)).not.toThrow()
   })
+
+  it('解析 gridOverlays 贡献', () => {
+    const raw = valid() as Record<string, unknown>
+    raw.contributes = {
+      ...(raw.contributes as object),
+      gridOverlays: [{ id: 'schedule' }],
+    }
+    const m = parseManifest(raw)
+    expect(m.contributes.gridOverlays).toEqual([{ id: 'schedule' }])
+  })
+
+  it('gridOverlays 必须是对象数组且 id 不重复', () => {
+    const raw = valid() as Record<string, unknown>
+    raw.contributes = { gridOverlays: 'schedule' }
+    expect(() => parseManifest(raw)).toThrow('gridOverlays')
+    raw.contributes = { gridOverlays: [{ id: 'a' }, { id: 'a' }] }
+    expect(() => parseManifest(raw)).toThrow('重复')
+    raw.contributes = { gridOverlays: [{ id: '' }] }
+    expect(() => parseManifest(raw)).toThrow('覆盖层 id')
+  })
+
+  it('解析 dayEditorTools 贡献', () => {
+    const raw = valid() as Record<string, unknown>
+    raw.contributes = {
+      ...(raw.contributes as object),
+      dayEditorTools: [{ id: 'day-todos', label: '待办', component: 'views/DayTodosTool.svelte' }],
+    }
+    const m = parseManifest(raw)
+    expect(m.contributes.dayEditorTools).toEqual([
+      { id: 'day-todos', label: '待办', component: 'views/DayTodosTool.svelte' },
+    ])
+  })
+
+  it('dayEditorTools 必须是对象数组且 id 不重复、component 拒绝穿越', () => {
+    const raw = valid() as Record<string, unknown>
+    raw.contributes = { dayEditorTools: 'tool' }
+    expect(() => parseManifest(raw)).toThrow('dayEditorTools')
+    raw.contributes = {
+      dayEditorTools: [
+        { id: 't', label: '工具', component: 'views/A.svelte' },
+        { id: 't', label: '工具', component: 'views/B.svelte' },
+      ],
+    }
+    expect(() => parseManifest(raw)).toThrow('重复')
+    raw.contributes = {
+      dayEditorTools: [{ id: 't', label: '工具', component: '../escape.svelte' }],
+    }
+    expect(() => parseManifest(raw)).toThrow('component')
+    raw.contributes = { dayEditorTools: [{ id: 't', label: '', component: 'views/A.svelte' }] }
+    expect(() => parseManifest(raw)).toThrow('label')
+  })
 })

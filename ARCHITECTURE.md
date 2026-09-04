@@ -145,7 +145,7 @@
         "component": "views/MemoView.js",
       },
     ],
-    // 后续：dayEditorTools、gridOverlays、settings、nativeAgents …
+    // gridOverlays、dayEditorTools 已落地；后续：settings、nativeAgents …
   },
 }
 ```
@@ -172,15 +172,16 @@
 
 ### 5.4 Host API（首期与演进）
 
-| 能力                   | 权限                   | 说明                                                                  |
-| ---------------------- | ---------------------- | --------------------------------------------------------------------- |
-| `host.fs.*`            | `fs:read` / `fs:write` | 扩展文件 API：`ext/<ext-id>/` 作用域，字节原语 + JSON 语法糖，见 §6.2 |
-| `host.log.*`           | —                      | 调试日志                                                              |
-| `host.grid.getDayMeta` | `grid:read`            | 格子上下文（后期）                                                    |
-| `host.config.get/set`  | `config:*`             | 扩展私有配置命名空间（后期）                                          |
-| `host.net.fetch`       | `net:fetch`            | 带白名单的网络（若扩展需要；采集类优先走 Agent）                      |
+| 能力                    | 权限                                   | 说明                                                                  |
+| ----------------------- | -------------------------------------- | --------------------------------------------------------------------- |
+| `host.fs.*`             | `fs:read` / `fs:write`                 | 扩展文件 API：`ext/<ext-id>/` 作用域，字节原语 + JSON 语法糖，见 §6.2 |
+| `host.log.*`            | —                                      | 调试日志                                                              |
+| `host.grid.setOverlays` | `contributes.gridOverlays`（按层门控） | 推送格子覆盖指令（日期寻址、整层替换），契约见 docs/Extensions.md     |
+| `host.grid.getDayMeta`  | `grid:read`                            | 格子上下文（后期）                                                    |
+| `host.config.get/set`   | `config:*`                             | 扩展私有配置命名空间（后期）                                          |
+| `host.net.fetch`        | `net:fetch`                            | 带白名单的网络（若扩展需要；采集类优先走 Agent）                      |
 
-格子覆盖采用**声明式指令**由宿主绘制（总览：颜色/强度混入像素；高清：dot/fill/text 等），扩展不直接持有 Canvas 上下文。
+格子覆盖采用**声明式指令**由宿主绘制（日期寻址、整层替换推送；总览混入像素、高清画 dot），扩展不直接持有 Canvas 上下文；已落地，完整契约见 docs/Extensions.md「gridOverlays 契约」。
 
 `host.fs.*` 的路径以**段数组**传递而非字符串：Host 逐段校验（拒绝空段、`.`/`..`、分隔符与控制字符、限长限深）后拼 `ext/<ext-id>/` 前缀，后端逐段取句柄——没有字符串解析环节，目录穿越在结构上不可能。字节为原语（`readFile`/`writeFile`），JSON 为语法糖（`readJson`/`writeJson`），扩展可存任意格式。实现见 `src/core/host/`（`paths.ts` 校验解析、`fs.ts` 门面）。
 
@@ -281,9 +282,20 @@ type TodoSchedule =
   | { kind: 'none' }
   | { kind: 'deadline'; due: string }
   | { kind: 'range'; start: string; end: string; requiredDays: number }
+
+type Todo = {
+  id: string
+  text: string
+  schedule: TodoSchedule
+  checkIns: string[] // 区间型打卡记录（YYYY-MM-DD，升序去重）；非区间型恒为空
+  done: boolean // 统一完成标志；区间型打卡达标自动置位
+  createdAt: number
+  updatedAt: number
+  version: number
+}
 ```
 
-分组：未达成 / 今日 / 近 7 日 / 之后 / 无日期 / 已完成。区间型按打卡天数达标；过期未完成标为未达成。截止日与区间结束日通过 `gridOverlays` 反映在日历上。
+一待办一文件 `ext/todo/todos/<id>.json`（同 memo 模式，同步按文件粒度合并）。分组：未达成 / 今日 / 近 7 日 / 之后 / 无日期 / 已完成——「未达成」（过期未完成）与分组由 schedule + done 实时派生，不入库。区间型按打卡天数达标自动完成，也可提前手动完成。截止日与区间结束日经 `gridOverlays` 反映在日历上（过期红色 / 当天橙色强染色 / 未来橙色弱染色 + 小点，见 `extensions/todo/src/overlay.ts`）；日记弹层工具区经 `dayEditorTools` 展示当天相关待办（勾选完成、今日打卡，见 `extensions/todo/views/DayTodosTool.svelte`）。实现见 `extensions/todo/`。
 
 ### 9.2 Memo
 
@@ -341,23 +353,25 @@ PWA：外部扩展安装到 OPFS 并加载预编译包（无 Agent）。桌面�
 
 ## 13. 决策记录（摘要）
 
-| 主题         | 选择                                                |
-| ------------ | --------------------------------------------------- |
-| 产品结构     | 核心日历+日记；memo/todo 内置扩展；重采集类另仓外置 |
-| 前端         | 单一 `src/`，Svelte 5 + Vite + TS                   |
-| 网格         | Canvas 2D + 离屏缓存 + 总览像素直写                 |
-| 扩展逻辑     | Worker 内 JS 或 wasm（可选）；视图 Svelte           |
-| 覆盖机制     | 派发点 + 中间件链；默认实现兜底，短路即覆盖         |
-| 桌面特有能力 | Native Agent：wasm，Tauri 内嵌运行时 + 宿主函数     |
-| PWA 存储     | OPFS（Worker + Comlink RPC）                        |
-| 桌面存储     | 本地数据文件夹                                      |
-| 数据搬运     | 不做 zip 导入导出；桌面文件夹自管 + 同步            |
-| 同步         | 桌面汇合 + 多副本可合并；实现库后期定               |
-| 仓库         | `src` + `src-tauri` + `extensions/*` + `crates/*`   |
-| 外置扩展     | 另仓构建 `dist/`；PWA/桌面安装流后期定              |
-| 扩展数据     | `ext/<ext-id>/` 文件夹隔离，内部结构扩展自定        |
-| 扩展文件 API | 段数组路径 + Host 校验拼接；字节原语 + JSON 语法糖  |
-| 数据保留     | 停用/卸载扩展不删数据，设置页存储管理手动清理       |
-| 内置扩展加载 | 构建时静态注册表（import.meta.glob）；外置另走路径  |
+| 主题         | 选择                                                                 |
+| ------------ | -------------------------------------------------------------------- |
+| 产品结构     | 核心日历+日记；memo/todo 内置扩展；重采集类另仓外置                  |
+| 前端         | 单一 `src/`，Svelte 5 + Vite + TS                                    |
+| 网格         | Canvas 2D + 离屏缓存 + 总览像素直写                                  |
+| 扩展逻辑     | Worker 内 JS 或 wasm（可选）；视图 Svelte                            |
+| 覆盖机制     | 派发点 + 中间件链；默认实现兜底，短路即覆盖                          |
+| 格子覆盖     | 日期寻址声明式指令；推模型整层替换；宿主校验+物化，热路径不走链      |
+| 日记工具     | 组件贡献（注入 context + date + dayIndex）；正文下方分区，注册序堆叠 |
+| 桌面特有能力 | Native Agent：wasm，Tauri 内嵌运行时 + 宿主函数                      |
+| PWA 存储     | OPFS（Worker + Comlink RPC）                                         |
+| 桌面存储     | 本地数据文件夹                                                       |
+| 数据搬运     | 不做 zip 导入导出；桌面文件夹自管 + 同步                             |
+| 同步         | 桌面汇合 + 多副本可合并；实现库后期定                                |
+| 仓库         | `src` + `src-tauri` + `extensions/*` + `crates/*`                    |
+| 外置扩展     | 另仓构建 `dist/`；PWA/桌面安装流后期定                               |
+| 扩展数据     | `ext/<ext-id>/` 文件夹隔离，内部结构扩展自定                         |
+| 扩展文件 API | 段数组路径 + Host 校验拼接；字节原语 + JSON 语法糖                   |
+| 数据保留     | 停用/卸载扩展不删数据，设置页存储管理手动清理                        |
+| 内置扩展加载 | 构建时静态注册表（import.meta.glob）；外置另走路径                   |
 
 本文随实现推进修订；标「后期定稿」的章节在进入对应阶段前再开决策。

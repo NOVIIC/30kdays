@@ -21,8 +21,10 @@
 │   │   └── host/           # Extension Host：manifest、权限、Worker、派发点/中间件链、Host API
 │   ├── stores/             # 前端状态：配置、主题、路由、存储状态等
 │   └── ui/                 # Svelte 界面：壳、Onboarding、日历、日记、设置
-├── extensions/            # 内置扩展包，构建期静态注册；memo 已落地（src/memos.ts 领域纯函数、
-│                          #   src/store.ts 列表状态与防抖保存、views/MemoView.svelte 主视图）；todo 随阶段 3
+├── extensions/            # 内置扩展包，构建期静态注册；memo、todo 已落地（各自 src/ 下领域纯函数
+│                          #   与列表状态/防抖保存、views/ 下主视图；todo 另含 src/overlay.ts 覆盖层
+│                          #   provider 与 views/DayTodosTool.svelte 日记工具，分别经 Host 的
+│                          #   gridOverlays / dayEditorTools 派发点接入核心）
 ├── src-tauri/             # 桌面壳（Tauri 2）：src/storage.rs 存储命令；窗口状态持久化；数据落在应用数据目录
 ├── crates/ ⏳阶段 5       # 宿主侧可共享的 Rust 库（Agent 宿主接口等；届时升级为根 Cargo workspace）
 ├── tests/                 # 单元测试（Vitest；domain / grid / storage / host / stores / extensions）

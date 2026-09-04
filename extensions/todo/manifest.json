@@ -1,0 +1,25 @@
+{
+  "id": "todo",
+  "name": "待办",
+  "version": "0.1.0",
+  "permissions": ["fs:read", "fs:write"],
+  "platforms": ["pwa", "desktop"],
+  "contributes": {
+    "views": [
+      {
+        "id": "todos",
+        "label": "待办",
+        "icon": "check",
+        "component": "views/TodoView.svelte"
+      }
+    ],
+    "gridOverlays": [{ "id": "schedule" }],
+    "dayEditorTools": [
+      {
+        "id": "day-todos",
+        "label": "待办",
+        "component": "views/DayTodosTool.svelte"
+      }
+    ]
+  }
+}

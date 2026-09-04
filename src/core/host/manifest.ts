@@ -25,9 +25,27 @@ export type ViewContribution = {
   component: string
 }
 
-/** 贡献点集合（首期只有 views；gridOverlays、dayEditorTools 等按阶段扩充）。 */
+/** 日记弹层工具贡献：日记编辑器正文下方工具区的一个分区。 */
+export type ToolContribution = {
+  /** 工具 id（扩展内唯一）。 */
+  id: string
+  /** 分区显示名。 */
+  label: string
+  /** 工具组件路径（相对扩展目录；与视图组件同规则）。 */
+  component: string
+}
+
+/** 格子覆盖层贡献：声明后可经 host.grid.setOverlays 推送该层指令。 */
+export type OverlayContribution = {
+  /** 层 id（扩展内唯一），即 setOverlays 的 layer 参数。 */
+  id: string
+}
+
+/** 贡献点集合（views、gridOverlays、dayEditorTools 已落地；settings 等按阶段扩充）。 */
 export type ExtensionContributes = {
   views?: ViewContribution[]
+  gridOverlays?: OverlayContribution[]
+  dayEditorTools?: ToolContribution[]
 }
 
 /** 扩展清单。 */
@@ -62,15 +80,15 @@ function requireString(v: unknown, field: string): string {
   return v
 }
 
-/** 校验视图组件路径：相对扩展目录的 POSIX 路径，各段合法（防目录穿越）。 */
-function parseComponentPath(v: unknown, viewId: string): string {
-  const component = requireString(v, `视图 ${viewId} 的 component`)
+/** 校验组件路径：相对扩展目录的 POSIX 路径，各段合法（防目录穿越）。owner 用于错误信息定位。 */
+function parseComponentPath(v: unknown, owner: string): string {
+  const component = requireString(v, `${owner} 的 component`)
   const segments = component.split('/')
   for (const seg of segments) {
     try {
       validateSegment(seg)
     } catch {
-      fail(`视图 ${viewId} 的 component 含非法段：${component}`)
+      fail(`${owner} 的 component 含非法段：${component}`)
     }
   }
   return component
@@ -90,8 +108,40 @@ function parseViews(raw: unknown): ViewContribution[] | undefined {
       id,
       label: requireString(item.label, `视图 ${id} 的 label`),
       icon: requireString(item.icon, `视图 ${id} 的 icon`),
-      component: parseComponentPath(item.component, id),
+      component: parseComponentPath(item.component, `视图 ${id}`),
     }
+  })
+}
+
+/** 校验日记弹层工具贡献数组；工具 id 重复时抛错。 */
+function parseDayEditorTools(raw: unknown): ToolContribution[] | undefined {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) fail('contributes.dayEditorTools 必须是数组')
+  const seen = new Set<string>()
+  return raw.map((item): ToolContribution => {
+    if (!isRecord(item)) fail('工具贡献必须是对象')
+    const id = requireString(item.id, '工具 id')
+    if (seen.has(id)) fail(`工具 id 重复：${id}`)
+    seen.add(id)
+    return {
+      id,
+      label: requireString(item.label, `工具 ${id} 的 label`),
+      component: parseComponentPath(item.component, `工具 ${id}`),
+    }
+  })
+}
+
+/** 校验格子覆盖层贡献数组；层 id 重复时抛错。 */
+function parseGridOverlays(raw: unknown): OverlayContribution[] | undefined {
+  if (raw === undefined) return undefined
+  if (!Array.isArray(raw)) fail('contributes.gridOverlays 必须是数组')
+  const seen = new Set<string>()
+  return raw.map((item): OverlayContribution => {
+    if (!isRecord(item)) fail('覆盖层贡献必须是对象')
+    const id = requireString(item.id, '覆盖层 id')
+    if (seen.has(id)) fail(`覆盖层 id 重复：${id}`)
+    seen.add(id)
+    return { id }
   })
 }
 
@@ -130,7 +180,10 @@ export function parseManifest(raw: unknown): ExtensionManifest {
   if (raw.contributes !== undefined && !isRecord(raw.contributes)) {
     fail('contributes 必须是对象')
   }
-  const views = parseViews(isRecord(raw.contributes) ? raw.contributes.views : undefined)
+  const contributes = isRecord(raw.contributes) ? raw.contributes : undefined
+  const views = parseViews(contributes?.views)
+  const gridOverlays = parseGridOverlays(contributes?.gridOverlays)
+  const dayEditorTools = parseDayEditorTools(contributes?.dayEditorTools)
 
   return {
     id,
@@ -139,6 +192,10 @@ export function parseManifest(raw: unknown): ExtensionManifest {
     main: raw.main as string | undefined,
     permissions: raw.permissions as string[],
     platforms: raw.platforms as Platform[],
-    contributes: views === undefined ? {} : { views },
+    contributes: {
+      ...(views === undefined ? {} : { views }),
+      ...(gridOverlays === undefined ? {} : { gridOverlays }),
+      ...(dayEditorTools === undefined ? {} : { dayEditorTools }),
+    },
   }
 }

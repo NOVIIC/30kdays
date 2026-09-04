@@ -16,6 +16,7 @@
     zoomAt,
     GridRenderer,
     type Camera,
+    type DayOverlay,
     type GridColors,
     type GridLayout,
   } from '../core/grid'
@@ -25,12 +26,15 @@
     dayIndex,
     today,
     colors,
+    overlays,
     ondayclick,
   }: {
     config: LifeConfig
     dayIndex: Uint8Array
     today: number
     colors: GridColors
+    /** 扩展格子覆盖（gridOverlays 派发点产物）：日索引 → 物化覆盖。 */
+    overlays: ReadonlyMap<number, DayOverlay>
     /** 点击某个格子（未拖动）时回调，参数为日索引。 */
     ondayclick?: (day: number) => void
   } = $props()
@@ -155,6 +159,13 @@
   $effect(() => {
     if (!renderer || !layout) return
     renderer.setData(layout, dayIndex, today)
+    renderer.render()
+  })
+
+  // 扩展覆盖层变化 → 收录并重绘
+  $effect(() => {
+    if (!renderer) return
+    renderer.setOverlays(overlays)
     renderer.render()
   })
 </script>

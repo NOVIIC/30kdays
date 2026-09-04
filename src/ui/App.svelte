@@ -8,7 +8,7 @@
   import { GRID_COLORS_DARK, GRID_COLORS_LIGHT } from '../core/grid'
   import { config } from '../stores/config'
   import { dayIndex } from '../stores/day-index'
-  import { extensionViews } from '../stores/host'
+  import { extensionViews, gridOverlays, startOverlayProviders } from '../stores/host'
   import { view } from '../stores/router'
   import { boot, bootError, bootState } from '../stores/storage'
   import { effectiveTheme, initTheme } from '../stores/theme'
@@ -28,6 +28,11 @@
   onMount(() => {
     initTheme()
     void boot()
+  })
+
+  // 配置就绪（存储可用）后启动扩展覆盖层 provider；幂等
+  $effect(() => {
+    if ($config !== null) startOverlayProviders()
   })
 </script>
 
@@ -83,7 +88,13 @@
           <!-- 配置变化（如寿命调整）时重建日历 -->
           {#key $config}
             <svelte:boundary>
-              <CalendarView config={$config} dayIndex={$dayIndex} {today} colors={gridColors} />
+              <CalendarView
+                config={$config}
+                dayIndex={$dayIndex}
+                {today}
+                colors={gridColors}
+                overlays={$gridOverlays}
+              />
               {#snippet failed(_error, reset)}
                 <ViewError message="日历加载失败。" onreset={reset} />
               {/snippet}

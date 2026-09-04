@@ -44,6 +44,11 @@
         stroke-linejoin="round"
       />
     </svg>
+  {:else if icon === 'check'}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="M8.5 12.5l2.5 2.5 4.5-5" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
   {:else}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="h-5 w-5">
       <circle cx="12" cy="12" r="3" />

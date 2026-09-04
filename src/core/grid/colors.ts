@@ -60,3 +60,37 @@ export function packColor([r, g, b]: [number, number, number]): number {
 export function packHexColor(hex: string): number {
   return packColor(parseHexColor(hex))
 }
+
+/** ABGR 像素值解包为 [r, g, b]。 */
+export function unpackColor(p: number): [number, number, number] {
+  return [p & 0xff, (p >> 8) & 0xff, (p >> 16) & 0xff]
+}
+
+/** [r, g, b] 转 #rrggbb。 */
+export function toHexColor([r, g, b]: [number, number, number]): string {
+  const hex = (v: number) => Math.round(v).toString(16).padStart(2, '0')
+  return `#${hex(r)}${hex(g)}${hex(b)}`
+}
+
+/** [r, g, b] 线性插值：t=0 取 base，t=1 取 tint。 */
+export function mixRgb(
+  base: [number, number, number],
+  tint: [number, number, number],
+  t: number,
+): [number, number, number] {
+  return [
+    base[0] + (tint[0] - base[0]) * t,
+    base[1] + (tint[1] - base[1]) * t,
+    base[2] + (tint[2] - base[2]) * t,
+  ]
+}
+
+/** 打包像素按强度混入另一打包像素（ABGR；供总览 Uint32Array 直写）。 */
+export function mixPacked(base: number, tint: number, intensity: number): number {
+  return packColor(mixRgb(unpackColor(base), unpackColor(tint), intensity))
+}
+
+/** #rrggbb 按强度混入另一 #rrggbb（供高清模式 CSS 颜色）。 */
+export function mixHexColor(base: string, tint: string, intensity: number): string {
+  return toHexColor(mixRgb(parseHexColor(base), parseHexColor(tint), intensity))
+}

@@ -8,8 +8,20 @@
 
 import { FLAG_MEDIA, FLAG_TEXT } from '../domain/day-index'
 import { createCamera, worldToScreen, type Camera } from './camera'
-import { packHexColor, type GridColors } from './colors'
+import { mixPacked, packHexColor, toHexColor, unpackColor, type GridColors } from './colors'
 import type { GridLayout } from './layout'
+import type { DayOverlay } from './overlay'
+
+/** 渲染器内部持有的覆盖：tint 颜色已打包（总览直写像素用），dot 保留 hex（高清 fillStyle 用）。 */
+type PackedOverlay = {
+  tints: { color: number; intensity: number }[]
+  dots: string[]
+}
+
+/** hex 底色混入打包的染色，返回 hex（高清填充用）。 */
+function mixHexWithPacked(baseHex: string, tintPacked: number, intensity: number): string {
+  return toHexColor(unpackColor(mixPacked(packHexColor(baseHex), tintPacked, intensity)))
+}
 
 /** 总览/高清分界：屏幕上的格边长（像素）。 */
 export const OVERVIEW_CELL_PX = 12
@@ -32,6 +44,9 @@ export class GridRenderer {
 
   private colors: GridColors
   private packed = { future: 0, past: 0, text: 0, media: 0, today: 0 }
+
+  /** 扩展覆盖层（gridOverlays 派发点产物）：日索引 → 物化覆盖。 */
+  private overlays: ReadonlyMap<number, PackedOverlay> = new Map()
 
   /** 总览离屏缓存：宽 cols、高 rows，一格一像素。 */
   private cache: HTMLCanvasElement | null = null
@@ -73,6 +88,19 @@ export class GridRenderer {
   /** 更新选中格（null 清除）。 */
   setSelected(index: number | null): void {
     this.selected = index
+  }
+
+  /** 收录覆盖层（整表替换）；tint 颜色在此打包，热路径不再解析字符串。 */
+  setOverlays(overlays: ReadonlyMap<number, DayOverlay>): void {
+    const packed = new Map<number, PackedOverlay>()
+    for (const [day, overlay] of overlays) {
+      packed.set(day, {
+        tints: overlay.tints.map((t) => ({ color: packHexColor(t.color), intensity: t.intensity })),
+        dots: overlay.dots,
+      })
+    }
+    this.overlays = packed
+    this.rebuildCache()
   }
 
   /** 视口尺寸（CSS 像素）变化时调用，按 DPR 调整画布分辨率。 */
@@ -127,21 +155,34 @@ export class GridRenderer {
     }
   }
 
-  /** 日索引 → 总览像素值；优先顺序：今天 > 图片 > 文字 > 过去/未来。 */
+  /** 日索引 → 总览像素值；基础色按 今天 > 图片 > 文字 > 过去/未来 取定后依序混入覆盖染色。 */
   private cellPixel(i: number): number {
-    if (i === this.today) return this.packed.today
-    const flags = this.dayIndex[i]
-    if (flags & FLAG_MEDIA) return this.packed.media
-    if (flags & FLAG_TEXT) return this.packed.text
-    return i < this.today ? this.packed.past : this.packed.future
+    let base: number
+    if (i === this.today) {
+      base = this.packed.today
+    } else {
+      const flags = this.dayIndex[i]
+      if (flags & FLAG_MEDIA) base = this.packed.media
+      else if (flags & FLAG_TEXT) base = this.packed.text
+      else base = i < this.today ? this.packed.past : this.packed.future
+    }
+    const overlay = this.overlays.get(i)
+    if (overlay === undefined) return base
+    for (const tint of overlay.tints) base = mixPacked(base, tint.color, tint.intensity)
+    return base
   }
 
-  /** 日索引 → 高清填充色（今天不在此特判，由描边表现）。 */
+  /** 日索引 → 高清填充色（今天不在此特判，由描边表现）；依序混入覆盖染色。 */
   private cellFill(i: number): string {
     const flags = this.dayIndex[i]
-    if (flags & FLAG_MEDIA) return this.colors.media
-    if (flags & FLAG_TEXT) return this.colors.text
-    return i < this.today ? this.colors.past : this.colors.future
+    let base: string
+    if (flags & FLAG_MEDIA) base = this.colors.media
+    else if (flags & FLAG_TEXT) base = this.colors.text
+    else base = i < this.today ? this.colors.past : this.colors.future
+    const overlay = this.overlays.get(i)
+    if (overlay === undefined) return base
+    for (const tint of overlay.tints) base = mixHexWithPacked(base, tint.color, tint.intensity)
+    return base
   }
 
   /** 重建总览缓存（布局或配色变化后）。 */
@@ -222,6 +263,18 @@ export class GridRenderer {
           ctx.strokeStyle = i === this.today ? this.colors.today : this.colors.selected
           ctx.lineWidth = Math.max(1.5, s * 0.06)
           ctx.stroke()
+        }
+        // 覆盖层圆点：右下角自右向左横排
+        const overlay = this.overlays.get(i)
+        if (overlay !== undefined && overlay.dots.length > 0) {
+          const dr = Math.max(1.5, size * 0.12)
+          const cy = y + size - dr * 1.4
+          overlay.dots.forEach((color, k) => {
+            ctx.fillStyle = color
+            ctx.beginPath()
+            ctx.arc(x + size - dr * 1.4 - k * dr * 2.6, cy, dr, 0, Math.PI * 2)
+            ctx.fill()
+          })
         }
       }
     }

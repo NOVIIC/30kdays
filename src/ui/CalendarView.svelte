@@ -3,7 +3,7 @@
    * 日历视图：网格主视图 + 悬浮操作（全景 / 今天）+ 底部统计与图例。
    */
   import { totalDays, type LifeConfig } from '../core/domain'
-  import type { GridColors } from '../core/grid'
+  import type { DayOverlay, GridColors } from '../core/grid'
   import { navigateToDay } from '../stores/router'
   import GridView from './GridView.svelte'
 
@@ -12,7 +12,14 @@
     dayIndex,
     today,
     colors,
-  }: { config: LifeConfig; dayIndex: Uint8Array; today: number; colors: GridColors } = $props()
+    overlays,
+  }: {
+    config: LifeConfig
+    dayIndex: Uint8Array
+    today: number
+    colors: GridColors
+    overlays: ReadonlyMap<number, DayOverlay>
+  } = $props()
 
   let grid: GridView
 
@@ -23,7 +30,15 @@
 </script>
 
 <div class="relative h-full w-full overflow-hidden">
-  <GridView bind:this={grid} {config} {dayIndex} {today} {colors} ondayclick={navigateToDay} />
+  <GridView
+    bind:this={grid}
+    {config}
+    {dayIndex}
+    {today}
+    {colors}
+    {overlays}
+    ondayclick={navigateToDay}
+  />
 
   <!-- 顶部操作 -->
   <div class="pointer-events-none absolute inset-x-0 top-0 flex justify-end p-4">

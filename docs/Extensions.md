@@ -36,14 +36,14 @@
         "component": "views/MemoView.js",
       },
     ],
-    // 后续：dayEditorTools、gridOverlays、settings、nativeAgents …
+    // gridOverlays、dayEditorTools 已落地（契约见下）；后续：settings、nativeAgents …
   },
 }
 ```
 
 内置扩展开发期可使用 `.svelte` 与 TS 源码，由主应用构建管线打包；发布物字段与外置 `dist` 对齐。
 
-加载机制：内置扩展在构建期经 `import.meta.glob` 静态收集（`src/core/host/registry.ts`，manifest 立即载入、视图组件懒加载、按当前平台过滤）；外部扩展走独立的运行时安装路径。视图渲染时经 prop 注入 `ExtensionContext`（`{ extId, fs, log }`），`fs` 按 manifest 声明的权限门控（未声明 `fs:read`/`fs:write` 则对应操作异步拒绝）。
+加载机制：内置扩展在构建期经 `import.meta.glob` 静态收集（`src/core/host/registry.ts`，manifest 立即载入、视图组件懒加载、按当前平台过滤）；外部扩展走独立的运行时安装路径。视图渲染时经 prop 注入 `ExtensionContext`（`{ extId, fs, log, grid }`），`fs` 按 manifest 声明的权限门控（未声明 `fs:read`/`fs:write` 则对应操作异步拒绝）。
 
 ## 派发点与中间件链
 
@@ -68,7 +68,28 @@
 | `settings`       | 设置页分区                    | 需配置的扩展          |
 | `nativeAgents`   | 桌面进程内 Agent              | 外部采集类扩展        |
 
-格子覆盖采用**声明式指令**由宿主绘制（总览：颜色/强度混入像素；高清：dot/fill/text 等），扩展不直接持有 Canvas 上下文。
+### gridOverlays 契约（已落地）
+
+格子覆盖采用**声明式指令**由宿主绘制，扩展不直接持有 Canvas 上下文：
+
+- **声明与入口**：扩展在 manifest `contributes.gridOverlays` 声明覆盖层 id（可多层），并提供 `src/overlay.ts`（导出 `start(ctx)`，可返回清理函数）。声明了层但缺少 provider 模块在注册期即报错；Host 在存储与配置就绪后启动各 provider（幂等）。
+- **指令格式**：以**日期**（YYYY-MM-DD，本地日历日）寻址——扩展无需关心人生配置与日索引换算。单条指令 `{ date, tint?: { color, intensity }, dot?: { color } }`（至少含 tint/dot 之一；颜色 `#rrggbb`，intensity 0..1），Host 逐条校验，任一非法则整体异步拒绝。
+- **推模型 + 整层替换**：扩展每次经 `host.grid.setOverlays(layer, instructions)` 推送某层**全量**指令；空数组等同清除该层。Host 收录时把日期换算为日索引（出生前/寿命外等无法换算的静默丢弃），按注册顺序合并各扩展各层为按天物化表，通知渲染侧。
+- **绘制**：渲染热路径只读物化表，不回调扩展——总览（格 < ~12px）按强度把 tint 混入像素（多 tint 按注册序依次混入）；高清模式除 tint 混入填充色外，在格右下角绘制 dot（多点自右向左排开）。
+- **门控与观测**：调用未在 manifest 声明的层会被异步拒绝；各层注册情况可查询（`OverlayHub.describe()`），保证行为来源可观测。
+
+实现见 `src/core/host/overlay.ts`（校验与汇集）、`src/core/grid/overlay.ts`（物化类型）与 `src/core/grid/renderer.ts`（绘制）；内置样例见 `extensions/todo/src/overlay.ts`。
+
+### dayEditorTools 契约（已落地）
+
+日记弹层的工具区采用**组件贡献**（与 views 同机制），位于正文下方、按注册序纵向堆叠：
+
+- **声明与入口**：manifest `contributes.dayEditorTools` 声明 `{ id, label, component }`（组件与视图同目录、同懒加载管线）；声明的组件缺失在注册期即报错。
+- **注入上下文**：Host 以 props 注入 `{ context, date, dayIndex }`——`context` 与视图注入的 ExtensionContext 一致；`date` 为当前编辑日的 YYYY-MM-DD（与 gridOverlays 的日期寻址原则一致，扩展无需关心日索引换算）；`dayIndex` 供需要直接读写核心按天数据的工具使用。
+- **呈现**：每个工具渲染为带 `label` 小标题的分区，正文保持主角地位；工具区整体限高、内部滚动。各工具独立错误边界，单个工具加载/运行失败不影响日记编辑器与其它工具。
+- **加载时机**：工具组件在弹层打开时懒加载（首屏日历无开销）；交互所需的全部数据读写经 Host API，无新增权限维度。
+
+实现见 `src/core/host/registry.ts`（收集）与 `src/ui/DayEditor.svelte`（工具区渲染）；内置样例见 `extensions/todo/views/DayTodosTool.svelte`。
 
 ## 数据存储
 
@@ -83,13 +104,14 @@
 
 ## Host API 与权限
 
-| 能力                   | 权限                   | 说明                                                         |
-| ---------------------- | ---------------------- | ------------------------------------------------------------ |
-| `host.fs.*`            | `fs:read` / `fs:write` | 扩展文件 API：`ext/<ext-id>/` 作用域，字节原语 + JSON 语法糖 |
-| `host.log.*`           | —                      | 调试日志                                                     |
-| `host.grid.getDayMeta` | `grid:read`            | 格子上下文（后期）                                           |
-| `host.config.get/set`  | `config:*`             | 扩展私有配置命名空间（后期）                                 |
-| `host.net.fetch`       | `net:fetch`            | 带白名单的网络（若扩展需要；采集类优先走 Agent）             |
+| 能力                    | 权限                                   | 说明                                                         |
+| ----------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `host.fs.*`             | `fs:read` / `fs:write`                 | 扩展文件 API：`ext/<ext-id>/` 作用域，字节原语 + JSON 语法糖 |
+| `host.log.*`            | —                                      | 调试日志                                                     |
+| `host.grid.setOverlays` | `contributes.gridOverlays`（按层门控） | 推送格子覆盖指令（日期寻址、整层替换），契约见上             |
+| `host.grid.getDayMeta`  | `grid:read`                            | 格子上下文（后期）                                           |
+| `host.config.get/set`   | `config:*`                             | 扩展私有配置命名空间（后期）                                 |
+| `host.net.fetch`        | `net:fetch`                            | 带白名单的网络（若扩展需要；采集类优先走 Agent）             |
 
 权限规则：内置扩展权限随应用授予；外部扩展的安装、签名与权限 UX 后期定稿。
 

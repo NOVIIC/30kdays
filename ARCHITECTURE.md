@@ -287,7 +287,7 @@ type TodoSchedule =
 
 ### 9.2 Memo
 
-`{ id, text, updatedAt }`，按 `updatedAt` 倒序；就地编辑，经扩展逻辑与 `host.doc.*` 持久化。
+`{ id, text, updatedAt, version }`，一备忘一文件 `ext/memo/memos/<id>.json`（与 `days/<n>.json` 同模式，同步按文件粒度合并），按 `updatedAt` 倒序；纯视图扩展（无逻辑 Worker），就地编辑、防抖自动保存，经 `host.fs.*` 持久化。实现见 `extensions/memo/`。
 
 ---
 
